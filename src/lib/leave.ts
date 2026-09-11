@@ -1,0 +1,37 @@
+import { prisma } from "@/lib/prisma";
+
+/** Hitung cuti tahunan (ANNUAL) yang sudah terpakai (disetujui) tahun berjalan. */
+export async function usedAnnualLeave(
+  employeeId: string,
+  year = new Date().getFullYear()
+): Promise<number> {
+  const start = new Date(year, 0, 1);
+  const end = new Date(year + 1, 0, 1);
+  const rows = await prisma.leaveRequest.findMany({
+    where: {
+      employeeId,
+      type: "ANNUAL",
+      status: "APPROVED",
+      startDate: { gte: start, lt: end },
+    },
+    select: { days: true },
+  });
+  return rows.reduce((sum, r) => sum + r.days, 0);
+}
+
+/** Sisa saldo cuti tahunan. */
+export async function annualLeaveBalance(
+  employeeId: string,
+  quota: number
+): Promise<{ quota: number; used: number; remaining: number }> {
+  const used = await usedAnnualLeave(employeeId);
+  return { quota, used, remaining: Math.max(0, quota - used) };
+}
+
+/** Jumlah hari (inklusif) antara dua tanggal. */
+export function dayCount(start: Date, end: Date): number {
+  const a = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const b = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  const diff = Math.round((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
+  return diff + 1;
+}

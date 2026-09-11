@@ -1,0 +1,142 @@
+// HRIS AsiaCommerce — Prisma schema (PostgreSQL / Neon)
+// Identitas & profil karyawan bersumber dari SSO (di-mirror ke Employee).
+// HRIS memiliki data operasional HR: gaji, kuota cuti, pengajuan cuti & reimbursement.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employees Employee[]
+
+  @@map("companies")
+}
+
+// Karyawan = orang terpadu + akun HRIS. Cermin dari SSO (user + profile).
+model Employee {
+  id        String  @id @default(cuid())
+  ssoUserId String? // id user di SSO (sumber identitas)
+  email     String  @unique
+  name      String
+  phone     String?
+
+  // Cache profil dari SSO (untuk filter/ekspor tanpa call SSO tiap saat)
+  employeeCode     String? // profile.employeeId di SSO
+  jobTitle         String?
+  level            String?
+  departmentName   String?
+  officeName       String?
+  employmentStatus EmploymentStatus?
+  gender           Gender?
+  birthDate        DateTime?
+  joinDate         DateTime?
+
+  // Milik HRIS (tidak ditimpa saat sync)
+  monthlySalary Int? // gaji pokok bulanan (IDR)
+  leaveQuota    Int     @default(12) // jatah cuti tahunan (hari)
+  role          String  @default("EMPLOYEE") // HR_ADMIN | HR_STAFF | EMPLOYEE
+  isActive      Boolean @default(true)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  leaveRequests         LeaveRequest[]        @relation("EmployeeLeaves")
+  reviewedLeaves        LeaveRequest[]        @relation("LeaveReviewer")
+  reimbursements        ReimbursementRequest[] @relation("EmployeeReimbursements")
+  reviewedReimbursements ReimbursementRequest[] @relation("ReimbursementReviewer")
+
+  @@index([companyId])
+  @@index([ssoUserId])
+  @@map("employees")
+}
+
+model LeaveRequest {
+  id         String        @id @default(cuid())
+  employeeId String
+  type       LeaveType     @default(ANNUAL)
+  startDate  DateTime
+  endDate    DateTime
+  days       Int
+  reason     String?
+  status     RequestStatus @default(PENDING)
+
+  reviewedById String?
+  reviewedAt   DateTime?
+  reviewNote   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee  @relation("EmployeeLeaves", fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewer Employee? @relation("LeaveReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([employeeId])
+  @@index([status])
+  @@map("leave_requests")
+}
+
+model ReimbursementRequest {
+  id          String        @id @default(cuid())
+  employeeId  String
+  category    String
+  title       String
+  amount      Int
+  spentAt     DateTime
+  description String?
+  status      RequestStatus @default(PENDING)
+
+  reviewedById String?
+  reviewedAt   DateTime?
+  reviewNote   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee  @relation("EmployeeReimbursements", fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewer Employee? @relation("ReimbursementReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([employeeId])
+  @@index([status])
+  @@map("reimbursement_requests")
+}
+
+enum LeaveType {
+  ANNUAL
+  SICK
+  UNPAID
+  OTHER
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum EmploymentStatus {
+  PERMANENT
+  CONTRACT
+  INTERNSHIP
+  FREELANCE
+}
