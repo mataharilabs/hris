@@ -4,8 +4,10 @@ import { ArrowLeft, ExternalLink } from "lucide-react";
 import { requireUser, isHr } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { annualLeaveBalance } from "@/lib/leave";
+import { listEmployees } from "@/lib/sso-client";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { SalaryForm } from "@/components/employees/SalaryForm";
+import { EmployeeDetails } from "@/components/employees/EmployeeDetails";
 import {
   EMPLOYMENT_STATUS_LABELS,
   GENDER_LABELS,
@@ -39,6 +41,12 @@ export default async function EmployeeDetailPage({
 
   const balance = await annualLeaveBalance(e.id, e.leaveQuota);
   const ssoUrl = process.env.SSO_URL ?? "https://sso.asiacommerce.net";
+
+  // Profil lengkap dari SSO (untuk panel "Details").
+  const ssoList = e.ssoUserId
+    ? await listEmployees({ companyId: user.ssoCompanyId })
+    : [];
+  const full = ssoList.find((x) => x.id === e.ssoUserId) ?? null;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -165,6 +173,10 @@ export default async function EmployeeDetailPage({
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      <div className="mt-4">
+        <EmployeeDetails full={full} />
       </div>
     </div>
   );
