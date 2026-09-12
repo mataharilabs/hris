@@ -9,6 +9,7 @@ declare module "next-auth" {
       role: "HR_ADMIN" | "HR_STAFF" | "EMPLOYEE";
       companyId: string;
       companyName: string;
+      isSuperAdmin?: boolean; // admin platform SSO
       apps?: AppRoleMap; // klaim SSO: akses per-aplikasi
     } & DefaultSession["user"];
   }
@@ -26,6 +27,7 @@ declare module "next-auth/jwt" {
     role?: "HR_ADMIN" | "HR_STAFF" | "EMPLOYEE";
     companyId?: string;
     companyName?: string;
+    isSuperAdmin?: boolean;
     apps?: AppRoleMap;
   }
 }

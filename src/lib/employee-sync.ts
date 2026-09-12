@@ -20,6 +20,17 @@ export async function syncEmployeesFromSSO(
   for (const e of employees) {
     await upsertEmployeeMirror(companyId, e);
   }
+
+  // Prune: hapus cermin karyawan yang tak lagi ada di SSO (mis. admin platform
+  // yang kini dikecualikan). Hanya saat fetch berhasil (list tidak kosong) agar
+  // kegagalan koneksi tidak menghapus seluruh data.
+  if (employees.length > 0) {
+    const keepIds = employees.map((e) => e.id);
+    await prisma.employee.deleteMany({
+      where: { companyId, ssoUserId: { notIn: keepIds } },
+    });
+  }
+
   return employees.length;
 }
 

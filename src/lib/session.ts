@@ -32,6 +32,7 @@ type RawUser = {
   email?: string | null;
   companyId?: string;
   companyName?: string;
+  isSuperAdmin?: boolean;
   apps?: Record<string, string>;
 };
 
@@ -61,15 +62,32 @@ async function defaultCompany() {
  * Return null bila user tidak punya akses ke aplikasi HRIS.
  */
 export async function ensureLocalEmployee(claims: {
+  ssoId?: string;
   email?: string | null;
   name?: string | null;
   appRole?: string;
+  isSuperAdmin?: boolean;
 }): Promise<SessionUser | null> {
   const role =
     claims.appRole && ROLES.includes(claims.appRole as Role)
       ? (claims.appRole as Role)
       : null;
   if (!role || !claims.email) return null; // tanpa akses HRIS
+
+  // Admin platform SSO BUKAN karyawan: boleh mengakses HRIS (bila diberi role),
+  // tapi tidak disimpan/ditampilkan/dihitung sebagai Employee. Pakai identitas
+  // sintetis (tanpa baris DB) sehingga tak muncul di daftar/statistik.
+  if (claims.isSuperAdmin) {
+    const company = await defaultCompany();
+    return {
+      id: `sso:${claims.ssoId ?? claims.email}`,
+      name: claims.name,
+      email: claims.email,
+      role,
+      companyId: company.id,
+      companyName: company.name,
+    };
+  }
 
   const existing = await prisma.employee.findUnique({
     where: { email: claims.email },
@@ -119,9 +137,11 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   if (!raw) return null;
   if (ssoEnabled()) {
     const local = await ensureLocalEmployee({
+      ssoId: raw.id,
       email: raw.email,
       name: raw.name,
       appRole: raw.apps?.["HRIS"],
+      isSuperAdmin: raw.isSuperAdmin,
     });
     return local ? { ...local, ssoCompanyId: raw.companyId } : null;
   }
@@ -134,9 +154,11 @@ export async function requireUser(): Promise<SessionUser> {
   if (!raw) throw new AuthError("Tidak terautentikasi", 401);
   if (ssoEnabled()) {
     const local = await ensureLocalEmployee({
+      ssoId: raw.id,
       email: raw.email,
       name: raw.name,
       appRole: raw.apps?.["HRIS"],
+      isSuperAdmin: raw.isSuperAdmin,
     });
     if (!local) {
       throw new AuthError("Anda tidak memiliki akses ke aplikasi HRIS", 403);

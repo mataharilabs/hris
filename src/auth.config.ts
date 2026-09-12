@@ -59,6 +59,7 @@ export const authConfig = {
         session.user.role = token.role as typeof session.user.role;
         session.user.companyId = (token.companyId as string) ?? "";
         session.user.companyName = (token.companyName as string) ?? "";
+        session.user.isSuperAdmin = Boolean(token.isSuperAdmin);
         // Klaim SSO: map akses per-aplikasi (dipakai untuk turunkan role HRIS).
         session.user.apps = (token.apps as Record<string, string>) ?? undefined;
       }
