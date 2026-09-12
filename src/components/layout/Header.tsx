@@ -12,15 +12,16 @@ type HeaderProps = {
   email: string;
   role: string;
   companyName: string;
+  ssoUrl: string;
 };
 
-export function Header({ name, email, role, companyName }: HeaderProps) {
+export function Header({ name, email, role, companyName, ssoUrl }: HeaderProps) {
   const [open, setOpen] = useState(false);
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6">
       <div className="flex items-center gap-2">
-        <MobileNav role={role as NavRole} />
+        <MobileNav role={role as NavRole} ssoUrl={ssoUrl} />
         <div>
           <div className="text-sm font-semibold text-slate-800">
             {companyName}

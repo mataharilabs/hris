@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { CalendarDays, Receipt, ArrowRight } from "lucide-react";
+import { CalendarDays, Receipt, ArrowRight, Plus } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { annualLeaveBalance } from "@/lib/leave";
@@ -38,6 +39,15 @@ export default async function EssHomePage() {
       <PageHeader
         title={`Halo, ${user.name ?? "Karyawan"}`}
         description="Layanan mandiri karyawan (ESS)."
+        action={
+          <Link
+            href="/leave?new=1"
+            className={buttonVariants({ variant: "default" })}
+          >
+            <Plus className="h-4 w-4" />
+            Ajukan Cuti
+          </Link>
+        }
       />
 
       <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">

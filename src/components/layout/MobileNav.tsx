@@ -3,12 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, Users2 } from "lucide-react";
+import { Menu, X, Users2, ArrowLeft } from "lucide-react";
 import { navForRole } from "./nav-config";
 import type { NavRole } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
-export function MobileNav({ role }: { role: NavRole }) {
+export function MobileNav({ role, ssoUrl }: { role: NavRole; ssoUrl: string }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const groups = navForRole(role);
@@ -82,6 +82,15 @@ export function MobileNav({ role }: { role: NavRole }) {
                 </div>
               ))}
             </nav>
+            <div className="border-t border-slate-100 p-3">
+              <a
+                href={ssoUrl}
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+              >
+                <ArrowLeft className="h-[18px] w-[18px]" />
+                Kembali ke SSO
+              </a>
+            </div>
           </aside>
         </div>
       )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Loader2, ArrowLeft, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
@@ -44,6 +44,15 @@ export function LeaveForm() {
   const [cooldown, setCooldown] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Buka otomatis bila diarahkan dari shortcut (?new=1).
+  useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      setOpen(true);
+      router.replace("/leave");
+    }
+  }, [searchParams, router]);
 
   // Ambil daftar pengganti saat dialog dibuka.
   useEffect(() => {
