@@ -75,6 +75,7 @@ model LeaveRequest {
   endDate    DateTime
   days       Int
   reason     String?
+  task       String? // tugas/hand-over selama cuti (opsional)
   status     RequestStatus @default(PENDING)
 
   reviewedById String?

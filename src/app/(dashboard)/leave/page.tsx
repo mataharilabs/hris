@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { LeaveForm } from "@/components/ess/LeaveForm";
 import { ReviewActions } from "@/components/ess/ReviewActions";
+import { DeleteLeaveButton } from "@/components/ess/DeleteLeaveButton";
 import { StatusBadge } from "@/components/ess/StatusBadge";
 import { LEAVE_TYPE_LABELS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
@@ -22,6 +23,7 @@ export const dynamic = "force-dynamic";
 export default async function LeavePage() {
   const user = await requireUser();
   const hr = isHr(user.role);
+  const isAdmin = user.role === "HR_ADMIN";
 
   const [mine, balance, pending, approvedAll] = await Promise.all([
     prisma.leaveRequest.findMany({
@@ -113,7 +115,9 @@ export default async function LeavePage() {
                     <TableHead>Jenis</TableHead>
                     <TableHead>Tanggal</TableHead>
                     <TableHead>Hari</TableHead>
+                    <TableHead>Alasan</TableHead>
                     <TableHead>Pengganti</TableHead>
+                    <TableHead>Tgl Pengajuan</TableHead>
                     <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -128,11 +132,20 @@ export default async function LeavePage() {
                         {formatDate(l.startDate)} – {formatDate(l.endDate)}
                       </TableCell>
                       <TableCell>{l.days}</TableCell>
+                      <TableCell className="max-w-[180px] truncate text-sm text-slate-500">
+                        {l.reason ?? "-"}
+                      </TableCell>
                       <TableCell className="text-sm text-slate-500">
                         {l.substitute?.name ?? "-"}
                       </TableCell>
+                      <TableCell className="text-sm text-slate-500">
+                        {formatDate(l.createdAt)}
+                      </TableCell>
                       <TableCell>
-                        <ReviewActions endpoint={`/api/leave/${l.id}`} />
+                        <div className="flex items-center justify-end gap-1">
+                          <ReviewActions endpoint={`/api/leave/${l.id}`} />
+                          {isAdmin && <DeleteLeaveButton id={l.id} />}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -164,7 +177,10 @@ export default async function LeavePage() {
                     <TableHead>Jenis</TableHead>
                     <TableHead>Tanggal</TableHead>
                     <TableHead>Hari</TableHead>
+                    <TableHead>Alasan</TableHead>
                     <TableHead>Pengganti</TableHead>
+                    <TableHead>Tgl Pengajuan</TableHead>
+                    {isAdmin && <TableHead className="text-right">Aksi</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -178,9 +194,22 @@ export default async function LeavePage() {
                         {formatDate(l.startDate)} – {formatDate(l.endDate)}
                       </TableCell>
                       <TableCell>{l.days}</TableCell>
+                      <TableCell className="max-w-[180px] truncate text-sm text-slate-500">
+                        {l.reason ?? "-"}
+                      </TableCell>
                       <TableCell className="text-sm text-slate-500">
                         {l.substitute?.name ?? "-"}
                       </TableCell>
+                      <TableCell className="text-sm text-slate-500">
+                        {formatDate(l.createdAt)}
+                      </TableCell>
+                      {isAdmin && (
+                        <TableCell>
+                          <div className="flex justify-end">
+                            <DeleteLeaveButton id={l.id} />
+                          </div>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -206,6 +235,9 @@ export default async function LeavePage() {
                   <TableHead>Jenis</TableHead>
                   <TableHead>Tanggal</TableHead>
                   <TableHead>Hari</TableHead>
+                  <TableHead>Alasan</TableHead>
+                  <TableHead>Pengganti</TableHead>
+                  <TableHead>Tgl Pengajuan</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Catatan</TableHead>
                 </TableRow>
@@ -218,6 +250,15 @@ export default async function LeavePage() {
                       {formatDate(l.startDate)} – {formatDate(l.endDate)}
                     </TableCell>
                     <TableCell>{l.days}</TableCell>
+                    <TableCell className="max-w-[180px] truncate text-sm text-slate-500">
+                      {l.reason ?? "-"}
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-500">
+                      {l.substitute?.name ?? "-"}
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-500">
+                      {formatDate(l.createdAt)}
+                    </TableCell>
                     <TableCell>
                       <StatusBadge status={l.status} />
                     </TableCell>

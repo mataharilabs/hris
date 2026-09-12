@@ -63,3 +63,24 @@ export async function listEmployees(opts: {
   const data = await res.json();
   return data.employees ?? [];
 }
+
+export type SsoAppUser = {
+  id: string;
+  name: string | null;
+  email: string;
+  role?: string;
+};
+
+/** Daftar staf HR (HR_ADMIN/HR_STAFF) dari SSO. Admin platform sudah dikecualikan endpoint. */
+export async function listHrStaff(opts: {
+  companyId?: string;
+}): Promise<SsoAppUser[]> {
+  if (!ready()) return [];
+  const qs = new URLSearchParams({ applicationKey: "HRIS" });
+  if (opts.companyId) qs.set("companyId", opts.companyId);
+  const res = await ssoFetch(`/api/service/app-users?${qs}`);
+  if (!res.ok) return [];
+  const data = await res.json();
+  const users: SsoAppUser[] = data.users ?? [];
+  return users.filter((u) => u.role === "HR_ADMIN" || u.role === "HR_STAFF");
+}

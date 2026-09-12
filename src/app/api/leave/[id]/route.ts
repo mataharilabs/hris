@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireHr } from "@/lib/session";
+import { requireHr, requireRole } from "@/lib/session";
 import { handleApiError, ok } from "@/lib/api";
 import { notify } from "@/lib/notify-client";
 import { LEAVE_TYPE_LABELS } from "@/lib/constants";
@@ -56,6 +56,29 @@ export async function PATCH(
     });
 
     return ok(updated);
+  } catch (e) {
+    return handleApiError(e);
+  }
+}
+
+// Hapus pengajuan cuti (HR Admin). Jatah cuti otomatis kembali karena saldo
+// dihitung dari baris yang ada (PENDING/APPROVED).
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await requireRole(["HR_ADMIN"]);
+    const { id } = await params;
+
+    const leave = await prisma.leaveRequest.findFirst({
+      where: { id, employee: { companyId: user.companyId } },
+      select: { id: true },
+    });
+    if (!leave) return ok({ error: "Pengajuan tidak ditemukan" }, 404);
+
+    await prisma.leaveRequest.delete({ where: { id } });
+    return ok({ ok: true });
   } catch (e) {
     return handleApiError(e);
   }

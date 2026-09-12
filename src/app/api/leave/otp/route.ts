@@ -4,8 +4,18 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { handleApiError, ok } from "@/lib/api";
 import { notifyResult } from "@/lib/notify-client";
+import { dayCount } from "@/lib/leave";
+import { LEAVE_TYPE_LABELS } from "@/lib/constants";
+import { formatDate } from "@/lib/utils";
 
-const schema = z.object({ substituteId: z.string().min(1) });
+const schema = z.object({
+  substituteId: z.string().min(1),
+  type: z.enum(["ANNUAL", "SICK", "UNPAID", "OTHER"]),
+  startDate: z.string().min(1),
+  endDate: z.string().min(1),
+  reason: z.string().min(1),
+  task: z.string().optional(),
+});
 
 const RESEND_COOLDOWN_MS = 60 * 1000; // 1 menit
 const TTL_MS = 5 * 60 * 1000; // berlaku 5 menit
@@ -27,7 +37,8 @@ function maskPhone(p?: string | null): string | null {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
-    const { substituteId } = schema.parse(await req.json());
+    const body = schema.parse(await req.json());
+    const { substituteId } = body;
 
     if (substituteId === user.id) {
       return ok({ error: "Karyawan pengganti tidak boleh diri sendiri" }, 400);
@@ -61,13 +72,28 @@ export async function POST(req: NextRequest) {
       data: { requesterId: user.id, substituteId, code, expiresAt },
     });
 
+    // Rangkai detail pengajuan untuk ditampilkan ke pengganti.
+    const start = new Date(body.startDate);
+    const end = new Date(body.endDate);
+    const validDates = !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime());
+    const days = validDates ? dayCount(start, end) : 0;
+    const detail =
+      `Detail cuti ${user.name ?? "rekan"}:\n` +
+      `• Jenis: ${LEAVE_TYPE_LABELS[body.type]}\n` +
+      (validDates
+        ? `• Tanggal: ${formatDate(start)} – ${formatDate(end)} (${days} hari)\n`
+        : "") +
+      `• Alasan: ${body.reason}\n` +
+      (body.task ? `• Tugas/hand-over: ${body.task}\n` : "");
+
     const result = await notifyResult({
       to: { email: sub.email, phone: sub.phone },
       subject: "Kode Konfirmasi Karyawan Pengganti Cuti",
       message:
         `Halo ${sub.name},\n\n` +
-        `${user.name ?? "Seorang rekan"} mengajukan cuti dan menjadikan Anda karyawan pengganti.\n` +
-        `Kode konfirmasi: *${code}* (berlaku 5 menit).\n` +
+        `${user.name ?? "Seorang rekan"} mengajukan cuti dan menjadikan Anda karyawan pengganti.\n\n` +
+        detail +
+        `\nKode konfirmasi: *${code}* (berlaku 5 menit).\n` +
         `Bagikan kode ini ke pemohon bila Anda menyetujui.\n\n— HRIS AsiaCommerce`,
     });
 

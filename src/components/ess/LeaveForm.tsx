@@ -28,6 +28,7 @@ const emptyForm = {
   startDate: "",
   endDate: "",
   reason: "",
+  task: "",
   substituteId: "",
 };
 
@@ -41,6 +42,7 @@ export function LeaveForm() {
   const [code, setCode] = useState("");
   const [sent, setSent] = useState<SentInfo | null>(null);
   const [cooldown, setCooldown] = useState(0);
+  const [err, setErr] = useState<string | null>(null);
   const router = useRouter();
 
   // Ambil daftar pengganti saat dialog dibuka.
@@ -65,6 +67,7 @@ export function LeaveForm() {
     setCode("");
     setSent(null);
     setCooldown(0);
+    setErr(null);
   }
   function close() {
     setOpen(false);
@@ -75,11 +78,20 @@ export function LeaveForm() {
     const res = await fetch("/api/leave/otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ substituteId: form.substituteId }),
+      body: JSON.stringify({
+        substituteId: form.substituteId,
+        type: form.type,
+        startDate: form.startDate,
+        endDate: form.endDate,
+        reason: form.reason,
+        task: form.task,
+      }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data.error) {
-      toast(data.error ?? "Gagal mengirim kode", "error");
+      const m = data.error ?? "Gagal mengirim kode";
+      setErr(m);
+      toast(m, "error");
       return false;
     }
     const ch = [data.sentEmail && "email", data.sentWhatsapp && "WhatsApp"]
@@ -92,14 +104,19 @@ export function LeaveForm() {
   }
 
   async function goStep2() {
-    if (!form.startDate || !form.endDate) {
-      toast("Isi tanggal mulai & selesai", "error");
-      return;
-    }
     if (!form.substituteId) {
-      toast("Pilih karyawan pengganti", "error");
+      setErr("Pilih karyawan pengganti");
       return;
     }
+    if (!form.startDate || !form.endDate) {
+      setErr("Isi tanggal mulai & selesai");
+      return;
+    }
+    if (!form.reason.trim()) {
+      setErr("Alasan cuti wajib diisi");
+      return;
+    }
+    setErr(null);
     setSending(true);
     try {
       if (await sendOtp()) setStep(2);
@@ -172,7 +189,7 @@ export function LeaveForm() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Tanggal Mulai</Label>
+                <Label>Tanggal Mulai *</Label>
                 <Input
                   type="date"
                   value={form.startDate}
@@ -182,7 +199,7 @@ export function LeaveForm() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Tanggal Selesai</Label>
+                <Label>Tanggal Selesai *</Label>
                 <Input
                   type="date"
                   value={form.endDate}
@@ -193,7 +210,7 @@ export function LeaveForm() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Karyawan Pengganti</Label>
+              <Label>Karyawan Pengganti *</Label>
               <Select
                 value={form.substituteId}
                 onChange={(e) =>
@@ -215,14 +232,29 @@ export function LeaveForm() {
               )}
             </div>
             <div className="space-y-1.5">
-              <Label>Alasan (opsional)</Label>
+              <Label>Alasan Cuti *</Label>
               <Textarea
                 value={form.reason}
                 onChange={(e) =>
                   setForm((p) => ({ ...p, reason: e.target.value }))
                 }
+                placeholder="Alasan pengajuan cuti"
               />
             </div>
+            <div className="space-y-1.5">
+              <Label>Tugas / hand-over (opsional)</Label>
+              <Textarea
+                value={form.task}
+                onChange={(e) => setForm((p) => ({ ...p, task: e.target.value }))}
+                placeholder="Tugas yang diserahkan ke pengganti selama cuti"
+              />
+            </div>
+
+            {err && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {err}
+              </div>
+            )}
 
             <div className="flex items-start gap-2 rounded-lg bg-blue-50 p-3 text-xs text-blue-700">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
