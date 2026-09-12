@@ -58,6 +58,7 @@ model Employee {
 
   leaveRequests         LeaveRequest[]        @relation("EmployeeLeaves")
   reviewedLeaves        LeaveRequest[]        @relation("LeaveReviewer")
+  substituteForLeaves   LeaveRequest[]        @relation("LeaveSubstitute")
   reimbursements        ReimbursementRequest[] @relation("EmployeeReimbursements")
   reviewedReimbursements ReimbursementRequest[] @relation("ReimbursementReviewer")
 
@@ -80,15 +81,33 @@ model LeaveRequest {
   reviewedAt   DateTime?
   reviewNote   String?
 
+  // Karyawan pengganti (dikonfirmasi lewat kode OTP ke email/WA-nya)
+  substituteId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  employee Employee  @relation("EmployeeLeaves", fields: [employeeId], references: [id], onDelete: Cascade)
-  reviewer Employee? @relation("LeaveReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  employee   Employee  @relation("EmployeeLeaves", fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewer   Employee? @relation("LeaveReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  substitute Employee? @relation("LeaveSubstitute", fields: [substituteId], references: [id], onDelete: SetNull)
 
   @@index([employeeId])
   @@index([status])
   @@map("leave_requests")
+}
+
+// Kode OTP konfirmasi karyawan pengganti untuk pengajuan cuti.
+model SubstituteOtp {
+  id           String    @id @default(cuid())
+  requesterId  String // Employee yang mengajukan cuti
+  substituteId String // Employee pengganti (penerima kode)
+  code         String // 6 digit
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([requesterId, substituteId])
+  @@map("substitute_otps")
 }
 
 model ReimbursementRequest {

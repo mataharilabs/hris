@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
 
-/** Hitung cuti tahunan (ANNUAL) yang sudah terpakai (disetujui) tahun berjalan. */
+/**
+ * Cuti tahunan (ANNUAL) yang memotong kuota tahun berjalan.
+ * Termasuk yang MENUNGGU (PENDING) & DISETUJUI (APPROVED) — pengajuan
+ * langsung "memesan" kuota; hanya yang DITOLAK yang mengembalikan kuota.
+ */
 export async function usedAnnualLeave(
   employeeId: string,
   year = new Date().getFullYear()
@@ -11,7 +15,7 @@ export async function usedAnnualLeave(
     where: {
       employeeId,
       type: "ANNUAL",
-      status: "APPROVED",
+      status: { in: ["PENDING", "APPROVED"] },
       startDate: { gte: start, lt: end },
     },
     select: { days: true },

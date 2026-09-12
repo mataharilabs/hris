@@ -23,9 +23,10 @@ export default async function LeavePage() {
   const user = await requireUser();
   const hr = isHr(user.role);
 
-  const [mine, balance, pending] = await Promise.all([
+  const [mine, balance, pending, approvedAll] = await Promise.all([
     prisma.leaveRequest.findMany({
       where: { employeeId: user.id },
+      include: { substitute: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
     }),
     prisma.employee
@@ -37,8 +38,24 @@ export default async function LeavePage() {
             status: "PENDING",
             employee: { companyId: user.companyId },
           },
-          include: { employee: { select: { name: true } } },
+          include: {
+            employee: { select: { name: true } },
+            substitute: { select: { name: true } },
+          },
           orderBy: { createdAt: "asc" },
+        })
+      : Promise.resolve([]),
+    hr
+      ? prisma.leaveRequest.findMany({
+          where: {
+            status: "APPROVED",
+            employee: { companyId: user.companyId },
+          },
+          include: {
+            employee: { select: { name: true } },
+            substitute: { select: { name: true } },
+          },
+          orderBy: { startDate: "desc" },
         })
       : Promise.resolve([]),
   ]);
@@ -96,7 +113,7 @@ export default async function LeavePage() {
                     <TableHead>Jenis</TableHead>
                     <TableHead>Tanggal</TableHead>
                     <TableHead>Hari</TableHead>
-                    <TableHead>Alasan</TableHead>
+                    <TableHead>Pengganti</TableHead>
                     <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -111,11 +128,58 @@ export default async function LeavePage() {
                         {formatDate(l.startDate)} – {formatDate(l.endDate)}
                       </TableCell>
                       <TableCell>{l.days}</TableCell>
-                      <TableCell className="max-w-[200px] truncate text-sm text-slate-500">
-                        {l.reason ?? "-"}
+                      <TableCell className="text-sm text-slate-500">
+                        {l.substitute?.name ?? "-"}
                       </TableCell>
                       <TableCell>
                         <ReviewActions endpoint={`/api/leave/${l.id}`} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {hr && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Pengajuan Semua Karyawan ({approvedAll.length})</CardTitle>
+            <p className="text-xs text-slate-400">
+              Daftar cuti yang sudah disetujui.
+            </p>
+          </CardHeader>
+          <CardContent className="p-0">
+            {approvedAll.length === 0 ? (
+              <div className="px-5 py-8 text-center text-sm text-slate-400">
+                Belum ada cuti yang disetujui.
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Karyawan</TableHead>
+                    <TableHead>Jenis</TableHead>
+                    <TableHead>Tanggal</TableHead>
+                    <TableHead>Hari</TableHead>
+                    <TableHead>Pengganti</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {approvedAll.map((l) => (
+                    <TableRow key={l.id}>
+                      <TableCell className="font-medium text-slate-800">
+                        {l.employee.name}
+                      </TableCell>
+                      <TableCell>{LEAVE_TYPE_LABELS[l.type]}</TableCell>
+                      <TableCell className="text-sm">
+                        {formatDate(l.startDate)} – {formatDate(l.endDate)}
+                      </TableCell>
+                      <TableCell>{l.days}</TableCell>
+                      <TableCell className="text-sm text-slate-500">
+                        {l.substitute?.name ?? "-"}
                       </TableCell>
                     </TableRow>
                   ))}

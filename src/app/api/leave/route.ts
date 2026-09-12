@@ -10,6 +10,8 @@ const schema = z.object({
   startDate: z.string().min(1),
   endDate: z.string().min(1),
   reason: z.string().optional(),
+  substituteId: z.string().min(1, "Pilih karyawan pengganti"),
+  code: z.string().min(4, "Masukkan kode konfirmasi"),
 });
 
 // GET ?scope=mine|all — 'all' hanya untuk HR.
@@ -63,15 +65,36 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const created = await prisma.leaveRequest.create({
-      data: {
-        employeeId: user.id,
-        type: data.type,
-        startDate: start,
-        endDate: end,
-        days,
-        reason: data.reason || null,
+    // Verifikasi kode konfirmasi karyawan pengganti.
+    const otp = await prisma.substituteOtp.findFirst({
+      where: {
+        requesterId: user.id,
+        substituteId: data.substituteId,
+        consumedAt: null,
+        expiresAt: { gt: new Date() },
       },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!otp || otp.code !== data.code) {
+      return ok({ error: "Kode konfirmasi salah atau kadaluarsa" }, 400);
+    }
+
+    const created = await prisma.$transaction(async (tx) => {
+      await tx.substituteOtp.update({
+        where: { id: otp.id },
+        data: { consumedAt: new Date() },
+      });
+      return tx.leaveRequest.create({
+        data: {
+          employeeId: user.id,
+          type: data.type,
+          startDate: start,
+          endDate: end,
+          days,
+          reason: data.reason || null,
+          substituteId: data.substituteId,
+        },
+      });
     });
     return ok(created, 201);
   } catch (e) {
