@@ -15,6 +15,7 @@ export type SsoEmployee = {
   maritalStatus: string | null;
   nik: string | null;
   npwp: string | null;
+  addressKtp: string | null;
   addressDomicile: string | null;
   personalEmail: string | null;
   emergencyName: string | null;

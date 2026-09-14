@@ -15,7 +15,7 @@ function toDate(v: string | null): Date | null {
 export async function syncEmployeesFromSSO(
   companyId: string,
   ssoCompanyId?: string
-): Promise<number> {
+): Promise<SsoEmployee[]> {
   const employees = await listEmployees({ companyId: ssoCompanyId });
   for (const e of employees) {
     await upsertEmployeeMirror(companyId, e);
@@ -31,7 +31,7 @@ export async function syncEmployeesFromSSO(
     });
   }
 
-  return employees.length;
+  return employees;
 }
 
 async function upsertEmployeeMirror(companyId: string, e: SsoEmployee) {

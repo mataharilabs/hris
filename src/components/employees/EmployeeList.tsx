@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Search, Loader2, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input, Select } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableHeader,
@@ -14,21 +13,27 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import { EMPLOYMENT_STATUS_LABELS, GENDER_LABELS } from "@/lib/constants";
-import { formatCurrency, ageFrom } from "@/lib/utils";
+import {
+  EMPLOYMENT_STATUS_LABELS,
+  GENDER_LABELS,
+  MARITAL_STATUS_LABELS,
+} from "@/lib/constants";
+import { formatDate, ageFrom, tenureYears } from "@/lib/utils";
 
 type Item = {
   id: string;
   name: string;
   email: string;
-  jobTitle: string | null;
+  phone: string | null;
   departmentName: string | null;
   employmentStatus: string | null;
+  addressKtp: string | null;
   gender: string | null;
+  maritalStatus: string | null;
   birthDate: string | null;
-  monthlySalary: number | null;
-  leaveQuota: number;
-  leaveRemaining: number;
+  nik: string | null;
+  npwp: string | null;
+  joinDate: string | null;
 };
 
 type Filters = { departments: string[]; offices: string[]; levels: string[] };
@@ -163,12 +168,15 @@ export function EmployeeList() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nama</TableHead>
-                  <TableHead>Jabatan</TableHead>
-                  <TableHead>Departemen</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Umur</TableHead>
-                  <TableHead>Saldo Cuti</TableHead>
-                  <TableHead>Gaji</TableHead>
+                  <TableHead>Telepon</TableHead>
+                  <TableHead>Departemen/Divisi</TableHead>
+                  <TableHead>Alamat KTP</TableHead>
+                  <TableHead>Gender</TableHead>
+                  <TableHead>Status Pernikahan</TableHead>
+                  <TableHead>Tanggal Lahir</TableHead>
+                  <TableHead>NIK</TableHead>
+                  <TableHead>NPWP</TableHead>
+                  <TableHead>Tanggal Bergabung</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -184,30 +192,49 @@ export function EmployeeList() {
                       </Link>
                       <div className="text-xs text-slate-400">{e.email}</div>
                     </TableCell>
-                    <TableCell className="text-sm">{e.jobTitle ?? "-"}</TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {e.phone ?? "-"}
+                    </TableCell>
                     <TableCell className="text-sm">
                       {e.departmentName ?? "-"}
-                    </TableCell>
-                    <TableCell>
-                      {e.employmentStatus ? (
-                        <Badge className="border-slate-200 bg-slate-50 text-slate-600">
+                      {e.employmentStatus && (
+                        <div className="text-xs text-slate-400">
                           {EMPLOYMENT_STATUS_LABELS[e.employmentStatus]}
-                        </Badge>
-                      ) : (
-                        "-"
+                        </div>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm">
-                      {ageFrom(e.birthDate) ?? "-"}
+                    <TableCell className="max-w-[220px] text-sm text-slate-600">
+                      {e.addressKtp ?? "-"}
                     </TableCell>
                     <TableCell className="text-sm whitespace-nowrap">
-                      <span className="font-medium text-slate-800">
-                        {e.leaveRemaining}
-                      </span>
-                      <span className="text-slate-400"> / {e.leaveQuota} hari</span>
+                      {e.gender ? GENDER_LABELS[e.gender] : "-"}
                     </TableCell>
-                    <TableCell className="text-sm">
-                      {formatCurrency(e.monthlySalary)}
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {e.maritalStatus
+                        ? MARITAL_STATUS_LABELS[e.maritalStatus]
+                        : "-"}
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {e.birthDate ? formatDate(e.birthDate) : "-"}
+                      {ageFrom(e.birthDate) != null && (
+                        <div className="text-xs text-slate-400">
+                          {ageFrom(e.birthDate)} tahun
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {e.nik ?? "-"}
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {e.npwp ?? "-"}
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {e.joinDate ? formatDate(e.joinDate) : "-"}
+                      {tenureYears(e.joinDate) != null && (
+                        <div className="text-xs text-slate-400">
+                          {tenureYears(e.joinDate)} tahun
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <Link

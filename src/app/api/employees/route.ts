@@ -5,13 +5,15 @@ import { handleApiError, ok } from "@/lib/api";
 import { syncEmployeesFromSSO } from "@/lib/employee-sync";
 import type { Prisma } from "@prisma/client";
 
-// Daftar karyawan untuk halaman HR (filter + saldo cuti). HR-only.
+// Daftar karyawan untuk halaman HR (filter + profil lengkap). HR-only.
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
     if (!isHr(user.role)) throw new AuthError("Akses ditolak", 403);
 
-    await syncEmployeesFromSSO(user.companyId, user.ssoCompanyId);
+    // Sync + ambil profil lengkap dari SSO sekaligus.
+    const ssoList = await syncEmployeesFromSSO(user.companyId, user.ssoCompanyId);
+    const profileBySso = new Map(ssoList.map((s) => [s.id, s]));
 
     const sp = req.nextUrl.searchParams;
     const where: Prisma.EmployeeWhereInput = { companyId: user.companyId };
@@ -45,38 +47,23 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    // Saldo cuti tahunan per karyawan (kuota - ANNUAL PENDING/APPROVED tahun ini).
-    const year = new Date().getFullYear();
-    const usedRows = await prisma.leaveRequest.groupBy({
-      by: ["employeeId"],
-      where: {
-        type: "ANNUAL",
-        status: { in: ["PENDING", "APPROVED"] },
-        startDate: { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) },
-        employee: { companyId: user.companyId },
-      },
-      _sum: { days: true },
-    });
-    const usedByEmp = new Map(
-      usedRows.map((r) => [r.employeeId, r._sum.days ?? 0])
-    );
-
     const items = rows.map((e) => {
-      const used = usedByEmp.get(e.id) ?? 0;
+      const p = e.ssoUserId ? profileBySso.get(e.ssoUserId) : undefined;
       return {
         id: e.id,
         name: e.name,
         email: e.email,
-        employeeCode: e.employeeCode,
-        jobTitle: e.jobTitle,
+        phone: e.phone,
         departmentName: e.departmentName,
         employmentStatus: e.employmentStatus,
         gender: e.gender,
         birthDate: e.birthDate,
-        monthlySalary: e.monthlySalary,
-        leaveQuota: e.leaveQuota,
-        leaveUsed: used,
-        leaveRemaining: Math.max(0, e.leaveQuota - used),
+        joinDate: e.joinDate,
+        // Field profil dari SSO (tak disimpan di cermin lokal)
+        addressKtp: p?.addressKtp ?? null,
+        maritalStatus: p?.maritalStatus ?? null,
+        nik: p?.nik ?? null,
+        npwp: p?.npwp ?? null,
       };
     });
 
