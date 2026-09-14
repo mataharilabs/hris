@@ -10,7 +10,7 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> }
 ) {
   const { token } = await params;
-  const company = await prisma.company.findUnique({
+  const company = await prisma.company.findFirst({
     where: { shareToken: token },
     select: { id: true },
   });

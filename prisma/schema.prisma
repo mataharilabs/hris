@@ -17,12 +17,13 @@ model Company {
   id         String   @id @default(cuid())
   name       String
   slug       String   @unique
-  shareToken String?  @unique // token untuk link publik (demografi & data karyawan)
+  shareToken String? // token acak untuk link publik (demografi & data karyawan)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   employees Employee[]
 
+  @@index([shareToken])
   @@map("companies")
 }
 
