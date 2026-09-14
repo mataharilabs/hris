@@ -3,10 +3,12 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { handleApiError, ok } from "@/lib/api";
+import { randomUUID } from "node:crypto";
 import {
   ensureMeetingRooms,
   autoReleaseExpired,
   hasOverlap,
+  generateOccurrenceDates,
 } from "@/lib/meeting";
 import { notifyGroup } from "@/lib/notify-client";
 
@@ -78,6 +80,7 @@ export async function GET(req: NextRequest) {
         endAt: b.endAt.toISOString(),
         status: b.status,
         checkedInAt: b.checkedInAt ? b.checkedInAt.toISOString() : null,
+        seriesId: b.seriesId,
         employeeId: b.employeeId,
         employeeName: b.employee.name,
       })),
@@ -87,6 +90,14 @@ export async function GET(req: NextRequest) {
   }
 }
 
+const recurrenceSchema = z.object({
+  freq: z.enum(["WEEKLY", "WEEKDAY", "MONTHLY"]),
+  weekdays: z.array(z.number().int().min(0).max(6)).optional(),
+  endMode: z.enum(["date", "count"]),
+  untilDate: z.string().optional(),
+  count: z.number().int().min(1).max(100).optional(),
+});
+
 const createSchema = z.object({
   roomId: z.string().min(1),
   date: z.string().min(1),
@@ -94,6 +105,7 @@ const createSchema = z.object({
   endTime: z.string().regex(/^\d{2}:\d{2}$/),
   department: z.string().optional(),
   title: z.string().min(1, "Deskripsi kegiatan wajib diisi"),
+  recurrence: recurrenceSchema.optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -103,12 +115,13 @@ export async function POST(req: NextRequest) {
     await autoReleaseExpired(user.companyId);
     const data = createSchema.parse(await req.json());
 
-    const startAt = new Date(`${data.date}T${data.startTime}:00${TZ}`);
-    const endAt = new Date(`${data.date}T${data.endTime}:00${TZ}`);
-    if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) {
+    // Validasi jam (sama untuk tiap occurrence).
+    const t0 = new Date(`${data.date}T${data.startTime}:00${TZ}`);
+    const t1 = new Date(`${data.date}T${data.endTime}:00${TZ}`);
+    if (Number.isNaN(t0.getTime()) || Number.isNaN(t1.getTime())) {
       return ok({ error: "Tanggal/jam tidak valid" }, 400);
     }
-    if (endAt <= startAt) {
+    if (t1 <= t0) {
       return ok({ error: "Jam selesai harus setelah jam mulai" }, 400);
     }
 
@@ -118,42 +131,81 @@ export async function POST(req: NextRequest) {
     });
     if (!room) return ok({ error: "Ruang tidak ditemukan" }, 404);
 
-    if (await hasOverlap(room.id, startAt, endAt)) {
-      return ok(
-        { error: "Ruang sudah dipesan pada rentang jam tersebut" },
-        409
-      );
-    }
-
     const emp = await prisma.employee.findUnique({
       where: { id: user.id },
       select: { departmentName: true },
     });
     const department = data.department || emp?.departmentName || null;
 
-    const created = await prisma.meetingBooking.create({
-      data: {
+    // Tanggal kejadian: sekali, atau seri (recurring).
+    const dates = data.recurrence
+      ? generateOccurrenceDates(data.date, data.recurrence)
+      : [data.date];
+    if (dates.length === 0) {
+      return ok({ error: "Tidak ada tanggal yang cocok dengan pola" }, 400);
+    }
+
+    const seriesId = data.recurrence ? randomUUID() : null;
+    const rows: { startAt: Date; endAt: Date }[] = [];
+    const skipped: string[] = [];
+    for (const d of dates) {
+      const s = new Date(`${d}T${data.startTime}:00${TZ}`);
+      const e = new Date(`${d}T${data.endTime}:00${TZ}`);
+      if (await hasOverlap(room.id, s, e)) {
+        skipped.push(d);
+        continue;
+      }
+      rows.push({ startAt: s, endAt: e });
+    }
+
+    if (rows.length === 0) {
+      return ok(
+        { error: "Semua tanggal bentrok dengan booking lain", skipped },
+        409
+      );
+    }
+
+    await prisma.meetingBooking.createMany({
+      data: rows.map((r) => ({
         roomId: room.id,
         employeeId: user.id,
         title: data.title,
         department,
-        startAt,
-        endAt,
-      },
+        startAt: r.startAt,
+        endAt: r.endAt,
+        seriesId,
+      })),
     });
 
     // Notifikasi ke grup WhatsApp kantor (best-effort).
-    await notifyGroup(
-      `📅 *Ruang Meeting di-booking*\n` +
-        `• Ruang: ${room.name}\n` +
-        `• Tanggal: ${wibDate(startAt)}\n` +
-        `• Jam: ${wibTime(startAt)}–${wibTime(endAt)} WIB\n` +
-        (department ? `• Divisi: ${department}\n` : "") +
-        `• Oleh: ${user.name ?? "Karyawan"}\n` +
-        `• Agenda: ${data.title}\n\n— HRIS AsiaCommerce`
-    );
+    if (rows.length === 1 && !seriesId) {
+      const r = rows[0];
+      await notifyGroup(
+        `📅 *Ruang Meeting di-booking*\n` +
+          `• Ruang: ${room.name}\n` +
+          `• Tanggal: ${wibDate(r.startAt)}\n` +
+          `• Jam: ${wibTime(r.startAt)}–${wibTime(r.endAt)} WIB\n` +
+          (department ? `• Divisi: ${department}\n` : "") +
+          `• Oleh: ${user.name ?? "Karyawan"}\n` +
+          `• Agenda: ${data.title}\n\n— HRIS AsiaCommerce`
+      );
+    } else {
+      const first = rows[0];
+      const last = rows[rows.length - 1];
+      await notifyGroup(
+        `🔁 *Meeting Berulang di-booking*\n` +
+          `• Ruang: ${room.name}\n` +
+          `• Jam: ${wibTime(first.startAt)}–${wibTime(first.endAt)} WIB\n` +
+          `• ${rows.length} pertemuan: ${wibDate(first.startAt)} s/d ${wibDate(last.startAt)}\n` +
+          (department ? `• Divisi: ${department}\n` : "") +
+          `• Oleh: ${user.name ?? "Karyawan"}\n` +
+          `• Agenda: ${data.title}\n` +
+          (skipped.length ? `• Dilewati (bentrok): ${skipped.length} tanggal\n` : "") +
+          `\n— HRIS AsiaCommerce`
+      );
+    }
 
-    return ok(created, 201);
+    return ok({ created: rows.length, skipped }, 201);
   } catch (e) {
     return handleApiError(e);
   }

@@ -60,3 +60,49 @@ export function canCheckIn(startAt: Date, now = new Date()): boolean {
   const t = startAt.getTime();
   return now.getTime() >= t - GRACE_MS && now.getTime() <= t + GRACE_MS;
 }
+
+export type Recurrence = {
+  freq: "WEEKLY" | "WEEKDAY" | "MONTHLY";
+  weekdays?: number[]; // 0=Min..6=Sab (untuk WEEKLY)
+  endMode: "date" | "count";
+  untilDate?: string; // YYYY-MM-DD (mode date)
+  count?: number; // jumlah pertemuan (mode count)
+};
+
+const MAX_OCCURRENCES = 100;
+const HORIZON_DAYS = 220; // ~7 bulan pengaman
+
+function addDay(dateStr: string): string {
+  const d = new Date(`${dateStr}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Hasilkan daftar tanggal (YYYY-MM-DD) untuk meeting berulang, mulai dari startDate. */
+export function generateOccurrenceDates(
+  startDate: string,
+  rec: Recurrence
+): string[] {
+  const anchorDom = parseInt(startDate.slice(8, 10), 10);
+  const until = rec.endMode === "date" ? rec.untilDate : undefined;
+  const maxCount =
+    rec.endMode === "count"
+      ? Math.min(Math.max(1, rec.count ?? 1), MAX_OCCURRENCES)
+      : MAX_OCCURRENCES;
+
+  const dates: string[] = [];
+  let cur = startDate;
+  for (let i = 0; i < HORIZON_DAYS; i++) {
+    if (dates.length >= maxCount) break;
+    const wd = new Date(`${cur}T12:00:00Z`).getUTCDay();
+    const dom = parseInt(cur.slice(8, 10), 10);
+    let match = false;
+    if (rec.freq === "WEEKDAY") match = wd >= 1 && wd <= 5;
+    else if (rec.freq === "WEEKLY") match = (rec.weekdays ?? []).includes(wd);
+    else if (rec.freq === "MONTHLY") match = dom === anchorDom;
+    if (match) dates.push(cur);
+    if (until && cur >= until) break;
+    cur = addDay(cur);
+  }
+  return dates;
+}

@@ -28,9 +28,20 @@ type Booking = {
   endAt: string;
   status: "BOOKED" | "CHECKED_IN" | "RELEASED" | "CANCELLED";
   checkedInAt: string | null;
+  seriesId: string | null;
   employeeId: string;
   employeeName: string;
 };
+
+const WEEKDAYS = [
+  { v: 1, l: "Sen" },
+  { v: 2, l: "Sel" },
+  { v: 3, l: "Rab" },
+  { v: 4, l: "Kam" },
+  { v: 5, l: "Jum" },
+  { v: 6, l: "Sab" },
+  { v: 0, l: "Min" },
+];
 type Data = { date: string; meId: string; rooms: Room[]; bookings: Booking[] };
 
 const GRACE_MS = 15 * 60 * 1000;
@@ -80,7 +91,22 @@ export function MeetingCalendar() {
     endTime: "10:00",
     department: "",
     title: "",
+    recur: false,
+    freq: "WEEKLY" as "WEEKLY" | "WEEKDAY" | "MONTHLY",
+    weekdays: [] as number[],
+    endMode: "date" as "date" | "count",
+    untilDate: "",
+    count: 8,
   });
+
+  function toggleWeekday(v: number) {
+    setForm((f) => ({
+      ...f,
+      weekdays: f.weekdays.includes(v)
+        ? f.weekdays.filter((x) => x !== v)
+        : [...f.weekdays, v],
+    }));
+  }
 
   const load = useCallback(async (d: string) => {
     setLoading(true);
@@ -101,11 +127,17 @@ export function MeetingCalendar() {
 
   function openBooking() {
     setErr(null);
+    const wd = new Date(`${date}T12:00:00Z`).getUTCDay();
     setForm((f) => ({
       ...f,
       date,
       roomId: data?.rooms[0]?.id ?? "",
       title: "",
+      recur: false,
+      weekdays: [wd],
+      endMode: "date",
+      untilDate: "",
+      count: 8,
     }));
     setOpen(true);
   }
@@ -113,17 +145,45 @@ export function MeetingCalendar() {
   async function submit() {
     if (!form.roomId) return setErr("Pilih ruang");
     if (!form.title.trim()) return setErr("Isi deskripsi kegiatan");
+    if (form.recur) {
+      if (form.freq === "WEEKLY" && form.weekdays.length === 0)
+        return setErr("Pilih minimal satu hari");
+      if (form.endMode === "date" && !form.untilDate)
+        return setErr("Isi tanggal berakhir");
+    }
     setErr(null);
     setSaving(true);
     try {
+      const body: Record<string, unknown> = {
+        roomId: form.roomId,
+        date: form.date,
+        startTime: form.startTime,
+        endTime: form.endTime,
+        department: form.department,
+        title: form.title,
+      };
+      if (form.recur) {
+        body.recurrence = {
+          freq: form.freq,
+          weekdays: form.freq === "WEEKLY" ? form.weekdays : undefined,
+          endMode: form.endMode,
+          untilDate: form.endMode === "date" ? form.untilDate : undefined,
+          count: form.endMode === "count" ? Number(form.count) : undefined,
+        };
+      }
       const res = await fetch("/api/meetings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(body),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok || d.error) throw new Error(d.error ?? "Gagal booking");
-      toast("Ruang berhasil dipesan", "success");
+      const skipped = (d.skipped?.length ?? 0) as number;
+      toast(
+        `${d.created ?? 1} pertemuan dipesan` +
+          (skipped > 0 ? `, ${skipped} tanggal dilewati (bentrok)` : ""),
+        "success"
+      );
       setOpen(false);
       if (form.date !== date) setDate(form.date);
       else load(date);
@@ -134,11 +194,25 @@ export function MeetingCalendar() {
     }
   }
 
-  async function act(id: string, action: "checkin" | "cancel") {
-    if (action === "cancel" && !confirm("Batalkan booking ini?")) return;
+  async function act(
+    id: string,
+    action: "checkin" | "cancel",
+    scope?: "one" | "series"
+  ) {
+    if (action === "cancel") {
+      const msg =
+        scope === "series"
+          ? "Batalkan SELURUH seri (pertemuan mendatang)?"
+          : "Batalkan booking ini?";
+      if (!confirm(msg)) return;
+    }
     setBusyId(id);
     try {
-      const res = await fetch(`/api/meetings/${id}/${action}`, { method: "POST" });
+      const res = await fetch(`/api/meetings/${id}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: action === "cancel" ? JSON.stringify({ scope: scope ?? "one" }) : undefined,
+      });
       const d = await res.json().catch(() => ({}));
       if (!res.ok || d.error) throw new Error(d.error ?? "Gagal");
       toast(action === "checkin" ? "Check-in berhasil" : "Booking dibatalkan", "success");
@@ -219,6 +293,9 @@ export function MeetingCalendar() {
                             <div>
                               <div className="text-sm font-medium text-slate-800">
                                 {hhmm(b.startAt)}–{hhmm(b.endAt)} · {b.title}
+                                {b.seriesId && (
+                                  <span title="Meeting berulang"> 🔁</span>
+                                )}
                               </div>
                               <div className="text-xs text-slate-400">
                                 {b.department ? `${b.department} · ` : ""}
@@ -255,12 +332,22 @@ export function MeetingCalendar() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => act(b.id, "cancel")}
+                                onClick={() => act(b.id, "cancel", "one")}
                                 disabled={busyId === b.id}
                               >
                                 <X className="h-3.5 w-3.5" />
                                 Batalkan
                               </Button>
+                              {b.seriesId && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => act(b.id, "cancel", "series")}
+                                  disabled={busyId === b.id}
+                                >
+                                  Batalkan seri
+                                </Button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -331,6 +418,102 @@ export function MeetingCalendar() {
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
               placeholder="Agenda / topik meeting"
             />
+          </div>
+
+          <div className="rounded-lg border border-slate-200 p-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={form.recur}
+                onChange={(e) => setForm((f) => ({ ...f, recur: e.target.checked }))}
+              />
+              Ulangi (meeting berulang)
+            </label>
+
+            {form.recur && (
+              <div className="mt-3 space-y-3">
+                <div className="space-y-1.5">
+                  <Label>Pola</Label>
+                  <Select
+                    value={form.freq}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        freq: e.target.value as typeof f.freq,
+                      }))
+                    }
+                  >
+                    <option value="WEEKLY">Mingguan (pilih hari)</option>
+                    <option value="WEEKDAY">Setiap hari kerja (Sen–Jum)</option>
+                    <option value="MONTHLY">Bulanan (tanggal sama)</option>
+                  </Select>
+                </div>
+
+                {form.freq === "WEEKLY" && (
+                  <div className="flex flex-wrap gap-1">
+                    {WEEKDAYS.map((d) => (
+                      <button
+                        key={d.v}
+                        type="button"
+                        onClick={() => toggleWeekday(d.v)}
+                        className={`rounded-lg px-2.5 py-1 text-xs font-medium ${
+                          form.weekdays.includes(d.v)
+                            ? "bg-brand-600 text-white"
+                            : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {d.l}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label>Berakhir</Label>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="flex items-center gap-1.5 text-sm">
+                      <input
+                        type="radio"
+                        checked={form.endMode === "date"}
+                        onChange={() => setForm((f) => ({ ...f, endMode: "date" }))}
+                      />
+                      Sampai tanggal
+                    </label>
+                    <Input
+                      type="date"
+                      value={form.untilDate}
+                      disabled={form.endMode !== "date"}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, untilDate: e.target.value }))
+                      }
+                      className="w-auto"
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="flex items-center gap-1.5 text-sm">
+                      <input
+                        type="radio"
+                        checked={form.endMode === "count"}
+                        onChange={() => setForm((f) => ({ ...f, endMode: "count" }))}
+                      />
+                      Jumlah pertemuan
+                    </label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={form.count}
+                      disabled={form.endMode !== "count"}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, count: Number(e.target.value) }))
+                      }
+                      className="w-24"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {err && (
