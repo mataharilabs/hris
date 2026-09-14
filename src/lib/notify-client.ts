@@ -45,3 +45,21 @@ export async function notifyResult(input: NotifyInput): Promise<NotifyResult | n
 export async function notify(input: NotifyInput): Promise<void> {
   await notifyResult(input);
 }
+
+/** Kirim pesan ke grup WhatsApp kantor lewat hub SSO (best-effort). */
+export async function notifyGroup(message: string): Promise<void> {
+  if (!SSO_URL || !KEY) return;
+  try {
+    await fetch(`${SSO_URL}/api/service/notify-group`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message }),
+      cache: "no-store",
+    });
+  } catch (e) {
+    console.error("[NOTIFY_GROUP]", (e as Error).message);
+  }
+}

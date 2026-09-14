@@ -21,7 +21,8 @@ model Company {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  employees Employee[]
+  employees    Employee[]
+  meetingRooms MeetingRoom[]
 
   @@index([shareToken])
   @@map("companies")
@@ -66,6 +67,7 @@ model Employee {
   reviewedLeaves        LeaveRequest[]        @relation("LeaveReviewer")
   substituteForLeaves   LeaveRequest[]        @relation("LeaveSubstitute")
   managerForLeaves      LeaveRequest[]        @relation("LeaveManager")
+  meetingBookings       MeetingBooking[]      @relation("EmployeeBookings")
   reimbursements        ReimbursementRequest[] @relation("EmployeeReimbursements")
   reviewedReimbursements ReimbursementRequest[] @relation("ReimbursementReviewer")
 
@@ -143,6 +145,51 @@ model ReimbursementRequest {
   @@index([employeeId])
   @@index([status])
   @@map("reimbursement_requests")
+}
+
+// Ruang rapat (seed tetap: UTAMA & SERVER)
+model MeetingRoom {
+  id        String   @id @default(cuid())
+  key       String // "UTAMA" | "SERVER"
+  name      String
+  isActive  Boolean  @default(true)
+  companyId String
+  createdAt DateTime @default(now())
+
+  company  Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bookings MeetingBooking[]
+
+  @@unique([key, companyId])
+  @@index([companyId])
+  @@map("meeting_rooms")
+}
+
+model MeetingBooking {
+  id          String        @id @default(cuid())
+  roomId      String
+  employeeId  String
+  title       String
+  department  String?
+  startAt     DateTime
+  endAt       DateTime
+  status      BookingStatus @default(BOOKED)
+  checkedInAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  room     MeetingRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  employee Employee    @relation("EmployeeBookings", fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, startAt])
+  @@index([startAt])
+  @@map("meeting_bookings")
+}
+
+enum BookingStatus {
+  BOOKED
+  CHECKED_IN
+  RELEASED
+  CANCELLED
 }
 
 enum LeaveType {
