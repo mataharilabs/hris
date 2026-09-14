@@ -46,6 +46,9 @@ model Employee {
   maritalStatus    MaritalStatus?
   birthDate        DateTime?
   joinDate         DateTime?
+  nik              String?
+  npwp             String?
+  addressKtp       String?
 
   // Milik HRIS (tidak ditimpa saat sync)
   monthlySalary Int? // gaji pokok bulanan (IDR)

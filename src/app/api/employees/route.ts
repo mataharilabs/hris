@@ -11,9 +11,8 @@ export async function GET(req: NextRequest) {
     const user = await requireUser();
     if (!isHr(user.role)) throw new AuthError("Akses ditolak", 403);
 
-    // Sync + ambil profil lengkap dari SSO sekaligus.
-    const ssoList = await syncEmployeesFromSSO(user.companyId, user.ssoCompanyId);
-    const profileBySso = new Map(ssoList.map((s) => [s.id, s]));
+    // Sync cermin dari SSO (termasuk NIK/NPWP/Alamat KTP).
+    await syncEmployeesFromSSO(user.companyId, user.ssoCompanyId);
 
     const sp = req.nextUrl.searchParams;
     const where: Prisma.EmployeeWhereInput = { companyId: user.companyId };
@@ -62,7 +61,6 @@ export async function GET(req: NextRequest) {
     const usedByEmp = new Map(usedRows.map((r) => [r.employeeId, r._sum.days ?? 0]));
 
     const items = rows.map((e) => {
-      const p = e.ssoUserId ? profileBySso.get(e.ssoUserId) : undefined;
       const used = usedByEmp.get(e.id) ?? 0;
       return {
         id: e.id,
@@ -77,11 +75,10 @@ export async function GET(req: NextRequest) {
         joinDate: e.joinDate,
         leaveQuota: e.leaveQuota,
         leaveRemaining: Math.max(0, e.leaveQuota - used),
-        // Field profil dari SSO (tak disimpan di cermin lokal)
-        addressKtp: p?.addressKtp ?? null,
-        maritalStatus: p?.maritalStatus ?? null,
-        nik: p?.nik ?? null,
-        npwp: p?.npwp ?? null,
+        addressKtp: e.addressKtp,
+        maritalStatus: e.maritalStatus,
+        nik: e.nik,
+        npwp: e.npwp,
       };
     });
 

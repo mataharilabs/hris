@@ -53,6 +53,9 @@ async function upsertEmployeeMirror(companyId: string, e: SsoEmployee) {
       | null) ?? null,
     birthDate: toDate(e.birthDate),
     joinDate: toDate(e.joinDate),
+    nik: e.nik,
+    npwp: e.npwp,
+    addressKtp: e.addressKtp,
   };
 
   const existing =

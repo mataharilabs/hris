@@ -119,7 +119,7 @@ export function ShareButton() {
             />
             <p className="text-xs text-slate-400">
               Siapa pun dengan link ini bisa melihat data. Data sensitif (NIK,
-              NPWP, gaji) tidak ditampilkan di halaman publik.
+              NPWP, Alamat KTP, telepon, email) ditampilkan tersensor sebagian.
             </p>
           </div>
         )}

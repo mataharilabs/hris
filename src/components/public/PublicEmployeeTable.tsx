@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import { Search, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input, Select } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableHeader,
@@ -13,18 +12,44 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import { EMPLOYMENT_STATUS_LABELS, GENDER_LABELS } from "@/lib/constants";
+import {
+  EMPLOYMENT_STATUS_LABELS,
+  GENDER_LABELS,
+  MARITAL_STATUS_LABELS,
+} from "@/lib/constants";
+import { formatDate, ageFrom, tenureYears } from "@/lib/utils";
+
+const SENSITIVE_TIP =
+  "Data sensitif (NIK, NPWP, Alamat KTP) tidak ditampilkan di halaman publik. Login pada SSO sebagai HR Admin atau Super Admin untuk melihat data lengkapnya";
 
 type Item = {
   id: string;
   name: string;
-  jobTitle: string | null;
+  email: string | null;
+  phone: string | null;
   departmentName: string | null;
   officeName: string | null;
   employmentStatus: string | null;
   gender: string | null;
+  maritalStatus: string | null;
+  birthDate: string | null;
+  addressKtp: string | null;
+  nik: string | null;
+  npwp: string | null;
+  joinDate: string | null;
+  leaveQuota: number;
+  leaveRemaining: number;
 };
 type Filters = { departments: string[]; offices: string[] };
+
+// Sel data sensitif (tersensor) dengan tooltip penjelasan.
+function Sensitive({ value }: { value: string | null }) {
+  return (
+    <span title={SENSITIVE_TIP} className="cursor-help text-slate-400">
+      {value ?? "-"}
+    </span>
+  );
+}
 
 export function PublicEmployeeTable({ token }: { token: string }) {
   const [items, setItems] = useState<Item[]>([]);
@@ -134,43 +159,86 @@ export function PublicEmployeeTable({ token }: { token: string }) {
         ) : (
           <>
             <div className="border-b border-slate-100 px-4 py-2 text-xs text-slate-500">
-              {total} karyawan
+              {total} karyawan · data sensitif tersensor
             </div>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Nama</TableHead>
-                  <TableHead>Jabatan</TableHead>
+                  <TableHead>Telepon</TableHead>
                   <TableHead>Departemen/Divisi</TableHead>
                   <TableHead>Lokasi Kantor</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Alamat KTP</TableHead>
                   <TableHead>Gender</TableHead>
+                  <TableHead>Status Pernikahan</TableHead>
+                  <TableHead>Tanggal Lahir</TableHead>
+                  <TableHead>NIK</TableHead>
+                  <TableHead>NPWP</TableHead>
+                  <TableHead>Tanggal Bergabung</TableHead>
+                  <TableHead>Sisa Cuti</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {items.map((e) => (
                   <TableRow key={e.id}>
-                    <TableCell className="font-medium text-slate-800">
-                      {e.name}
+                    <TableCell>
+                      <div className="font-medium text-slate-800">{e.name}</div>
+                      <div className="text-xs">
+                        <Sensitive value={e.email} />
+                      </div>
                     </TableCell>
-                    <TableCell className="text-sm">{e.jobTitle ?? "-"}</TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      <Sensitive value={e.phone} />
+                    </TableCell>
                     <TableCell className="text-sm">
                       {e.departmentName ?? "-"}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {e.officeName ?? "-"}
-                    </TableCell>
-                    <TableCell>
-                      {e.employmentStatus ? (
-                        <Badge className="border-slate-200 bg-slate-50 text-slate-600">
+                      {e.employmentStatus && (
+                        <div className="text-xs text-slate-400">
                           {EMPLOYMENT_STATUS_LABELS[e.employmentStatus]}
-                        </Badge>
-                      ) : (
-                        "-"
+                        </div>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm">
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {e.officeName ?? "-"}
+                    </TableCell>
+                    <TableCell className="max-w-[200px] text-sm">
+                      <Sensitive value={e.addressKtp} />
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
                       {e.gender ? GENDER_LABELS[e.gender] : "-"}
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {e.maritalStatus
+                        ? MARITAL_STATUS_LABELS[e.maritalStatus]
+                        : "-"}
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {e.birthDate ? formatDate(e.birthDate) : "-"}
+                      {ageFrom(e.birthDate) != null && (
+                        <div className="text-xs text-slate-400">
+                          {ageFrom(e.birthDate)} tahun
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      <Sensitive value={e.nik} />
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      <Sensitive value={e.npwp} />
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {e.joinDate ? formatDate(e.joinDate) : "-"}
+                      {tenureYears(e.joinDate) != null && (
+                        <div className="text-xs text-slate-400">
+                          {tenureYears(e.joinDate)} tahun
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      <span className="font-medium text-slate-800">
+                        {e.leaveRemaining}
+                      </span>
+                      <span className="text-slate-400"> / {e.leaveQuota}</span>
                     </TableCell>
                   </TableRow>
                 ))}
