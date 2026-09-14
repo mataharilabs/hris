@@ -16,7 +16,9 @@ const schema = z.object({
   reason: z.string().min(1, "Alasan cuti wajib diisi"),
   task: z.string().optional(),
   substituteId: z.string().min(1, "Pilih karyawan pengganti"),
-  code: z.string().min(4, "Masukkan kode konfirmasi"),
+  substituteCode: z.string().min(4, "Masukkan kode karyawan pengganti"),
+  managerId: z.string().min(1, "Pilih Manager/Lead"),
+  managerCode: z.string().min(4, "Masukkan kode Manager/Lead"),
 });
 
 // Beri tahu semua HR (HR_ADMIN/HR_STAFF) bahwa ada pengajuan cuti baru.
@@ -32,6 +34,7 @@ async function notifyHrNewLeave(
     reason: string;
     task?: string | null;
     substituteName: string | null;
+    managerName: string | null;
   }
 ) {
   const hr = await listHrStaff({ companyId: ssoCompanyId });
@@ -52,6 +55,7 @@ async function notifyHrNewLeave(
     `• Alasan: ${leave.reason}\n` +
     (leave.task ? `• Tugas: ${leave.task}\n` : "") +
     (leave.substituteName ? `• Pengganti: ${leave.substituteName}\n` : "") +
+    (leave.managerName ? `• Manager/Lead: ${leave.managerName}\n` : "") +
     `\nMohon tinjau di HRIS. — HRIS AsiaCommerce`;
 
   await Promise.all(
@@ -116,23 +120,37 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Verifikasi kode konfirmasi karyawan pengganti.
-    const otp = await prisma.substituteOtp.findFirst({
-      where: {
-        requesterId: user.id,
-        substituteId: data.substituteId,
-        consumedAt: null,
-        expiresAt: { gt: new Date() },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-    if (!otp || otp.code !== data.code) {
-      return ok({ error: "Kode konfirmasi salah atau kadaluarsa" }, 400);
+    if (data.managerId === data.substituteId) {
+      return ok(
+        { error: "Manager/Lead tidak boleh sama dengan karyawan pengganti" },
+        400
+      );
+    }
+
+    // Verifikasi dua kode: karyawan pengganti & Manager/Lead.
+    const findOtp = (recipientId: string) =>
+      prisma.substituteOtp.findFirst({
+        where: {
+          requesterId: user.id,
+          substituteId: recipientId,
+          consumedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+    const subOtp = await findOtp(data.substituteId);
+    if (!subOtp || subOtp.code !== data.substituteCode) {
+      return ok({ error: "Kode karyawan pengganti salah atau kadaluarsa" }, 400);
+    }
+    const mgrOtp = await findOtp(data.managerId);
+    if (!mgrOtp || mgrOtp.code !== data.managerCode) {
+      return ok({ error: "Kode Manager/Lead salah atau kadaluarsa" }, 400);
     }
 
     const created = await prisma.$transaction(async (tx) => {
-      await tx.substituteOtp.update({
-        where: { id: otp.id },
+      await tx.substituteOtp.updateMany({
+        where: { id: { in: [subOtp.id, mgrOtp.id] } },
         data: { consumedAt: new Date() },
       });
       return tx.leaveRequest.create({
@@ -145,15 +163,22 @@ export async function POST(req: NextRequest) {
           reason: data.reason,
           task: data.task || null,
           substituteId: data.substituteId,
+          managerId: data.managerId,
         },
       });
     });
 
     // Notifikasi ke HR (best-effort, tak menggagalkan pengajuan).
-    const substitute = await prisma.employee.findUnique({
-      where: { id: data.substituteId },
-      select: { name: true },
-    });
+    const [substitute, manager] = await Promise.all([
+      prisma.employee.findUnique({
+        where: { id: data.substituteId },
+        select: { name: true },
+      }),
+      prisma.employee.findUnique({
+        where: { id: data.managerId },
+        select: { name: true },
+      }),
+    ]);
     await notifyHrNewLeave(user.companyId, user.ssoCompanyId, {
       requesterName: user.name ?? user.email ?? "Karyawan",
       type: data.type,
@@ -163,6 +188,7 @@ export async function POST(req: NextRequest) {
       reason: data.reason,
       task: data.task,
       substituteName: substitute?.name ?? null,
+      managerName: manager?.name ?? null,
     });
 
     return ok(created, 201);

@@ -9,7 +9,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toaster";
 import { LEAVE_TYPE_LABELS } from "@/lib/constants";
 
-type Substitute = {
+type Person = {
   id: string;
   name: string;
   jobTitle: string | null;
@@ -17,11 +17,7 @@ type Substitute = {
   hasPhone: boolean;
 };
 
-type SentInfo = {
-  name: string;
-  email: string | null;
-  phone: string | null;
-};
+type SentInfo = { name: string; email: string | null; phone: string | null };
 
 const emptyForm = {
   type: "ANNUAL",
@@ -30,23 +26,25 @@ const emptyForm = {
   reason: "",
   task: "",
   substituteId: "",
+  managerId: "",
 };
 
 export function LeaveForm() {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
   const [form, setForm] = useState({ ...emptyForm });
-  const [subs, setSubs] = useState<Substitute[]>([]);
-  const [sending, setSending] = useState(false); // kirim OTP (step 1 → 2)
-  const [submitting, setSubmitting] = useState(false); // ajukan (step 2)
-  const [code, setCode] = useState("");
-  const [sent, setSent] = useState<SentInfo | null>(null);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [sending, setSending] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [codeSub, setCodeSub] = useState("");
+  const [codeMgr, setCodeMgr] = useState("");
+  const [sentSub, setSentSub] = useState<SentInfo | null>(null);
+  const [sentMgr, setSentMgr] = useState<SentInfo | null>(null);
   const [cooldown, setCooldown] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Buka otomatis bila diarahkan dari shortcut (?new=1).
   useEffect(() => {
     if (searchParams.get("new") === "1") {
       setOpen(true);
@@ -54,16 +52,14 @@ export function LeaveForm() {
     }
   }, [searchParams, router]);
 
-  // Ambil daftar pengganti saat dialog dibuka.
   useEffect(() => {
     if (!open) return;
     fetch("/api/employees/substitutes")
       .then((r) => (r.ok ? r.json() : []))
-      .then(setSubs)
-      .catch(() => setSubs([]));
+      .then(setPeople)
+      .catch(() => setPeople([]));
   }, [open]);
 
-  // Hitung mundur cooldown resend.
   useEffect(() => {
     if (cooldown <= 0) return;
     const t = setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000);
@@ -73,8 +69,10 @@ export function LeaveForm() {
   function reset() {
     setStep(1);
     setForm({ ...emptyForm });
-    setCode("");
-    setSent(null);
+    setCodeSub("");
+    setCodeMgr("");
+    setSentSub(null);
+    setSentMgr(null);
     setCooldown(0);
     setErr(null);
   }
@@ -83,12 +81,17 @@ export function LeaveForm() {
     reset();
   }
 
-  async function sendOtp(): Promise<boolean> {
+  // Kirim OTP ke satu penerima; kembalikan info penerima atau null bila gagal.
+  async function sendOtpTo(
+    recipientId: string,
+    role: "substitute" | "manager"
+  ): Promise<SentInfo | null> {
     const res = await fetch("/api/leave/otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        substituteId: form.substituteId,
+        recipientId,
+        role,
         type: form.type,
         startDate: form.startDate,
         endDate: form.endDate,
@@ -98,37 +101,37 @@ export function LeaveForm() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data.error) {
-      const m = data.error ?? "Gagal mengirim kode";
-      setErr(m);
-      toast(m, "error");
-      return false;
+      setErr(data.error ?? "Gagal mengirim kode");
+      return null;
     }
-    const ch = [data.sentEmail && "email", data.sentWhatsapp && "WhatsApp"]
-      .filter(Boolean)
-      .join(" & ");
-    setSent(data.substitute);
+    return data.recipient as SentInfo;
+  }
+
+  async function sendBoth(): Promise<boolean> {
+    const [s, m] = await Promise.all([
+      sendOtpTo(form.substituteId, "substitute"),
+      sendOtpTo(form.managerId, "manager"),
+    ]);
+    if (!s || !m) return false;
+    setSentSub(s);
+    setSentMgr(m);
     setCooldown(60);
-    toast(`Kode dikirim via ${ch}`, "success");
+    toast("Kode dikirim ke pengganti & Manager/Lead", "success");
     return true;
   }
 
   async function goStep2() {
-    if (!form.substituteId) {
-      setErr("Pilih karyawan pengganti");
-      return;
-    }
-    if (!form.startDate || !form.endDate) {
-      setErr("Isi tanggal mulai & selesai");
-      return;
-    }
-    if (!form.reason.trim()) {
-      setErr("Alasan cuti wajib diisi");
-      return;
-    }
+    if (!form.substituteId) return setErr("Pilih karyawan pengganti");
+    if (!form.managerId) return setErr("Pilih Manager/Lead");
+    if (form.managerId === form.substituteId)
+      return setErr("Manager/Lead tidak boleh sama dengan karyawan pengganti");
+    if (!form.startDate || !form.endDate)
+      return setErr("Isi tanggal mulai & selesai");
+    if (!form.reason.trim()) return setErr("Alasan cuti wajib diisi");
     setErr(null);
     setSending(true);
     try {
-      if (await sendOtp()) setStep(2);
+      if (await sendBoth()) setStep(2);
     } finally {
       setSending(false);
     }
@@ -138,15 +141,15 @@ export function LeaveForm() {
     if (cooldown > 0) return;
     setSending(true);
     try {
-      await sendOtp();
+      await sendBoth();
     } finally {
       setSending(false);
     }
   }
 
   async function submit() {
-    if (!code.trim()) {
-      toast("Masukkan kode konfirmasi", "error");
+    if (!codeSub.trim() || !codeMgr.trim()) {
+      toast("Masukkan kedua kode konfirmasi", "error");
       return;
     }
     setSubmitting(true);
@@ -154,7 +157,11 @@ export function LeaveForm() {
       const res = await fetch("/api/leave", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, code }),
+        body: JSON.stringify({
+          ...form,
+          substituteCode: codeSub,
+          managerCode: codeMgr,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.error) throw new Error(data.error ?? "Gagal mengajukan");
@@ -168,7 +175,8 @@ export function LeaveForm() {
     }
   }
 
-  const selectedSub = subs.find((s) => s.id === form.substituteId);
+  const managerOptions = people.filter((p) => p.id !== form.substituteId);
+  const substituteOptions = people.filter((p) => p.id !== form.managerId);
 
   return (
     <>
@@ -227,26 +235,36 @@ export function LeaveForm() {
                 }
               >
                 <option value="">- Pilih karyawan -</option>
-                {subs.map((s) => (
+                {substituteOptions.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                     {s.jobTitle ? ` — ${s.jobTitle}` : ""}
                   </option>
                 ))}
               </Select>
-              {selectedSub && !selectedSub.hasEmail && !selectedSub.hasPhone && (
-                <p className="text-xs text-red-500">
-                  Karyawan ini tidak punya email/WhatsApp untuk menerima kode.
-                </p>
-              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label>Manager / Lead *</Label>
+              <Select
+                value={form.managerId}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, managerId: e.target.value }))
+                }
+              >
+                <option value="">- Pilih Manager/Lead -</option>
+                {managerOptions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                    {s.jobTitle ? ` — ${s.jobTitle}` : ""}
+                  </option>
+                ))}
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label>Alasan Cuti *</Label>
               <Textarea
                 value={form.reason}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, reason: e.target.value }))
-                }
+                onChange={(e) => setForm((p) => ({ ...p, reason: e.target.value }))}
                 placeholder="Alasan pengajuan cuti"
               />
             </div>
@@ -267,8 +285,9 @@ export function LeaveForm() {
 
             <div className="flex items-start gap-2 rounded-lg bg-blue-50 p-3 text-xs text-blue-700">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-              Langkah berikutnya: masukkan kode konfirmasi yang dikirim ke email &amp;
-              WhatsApp karyawan pengganti.
+              Langkah berikutnya: masukkan 2 kode konfirmasi yang dikirim ke email
+              &amp; WhatsApp <strong>karyawan pengganti</strong> dan{" "}
+              <strong>Manager/Lead</strong>.
             </div>
 
             <div className="flex justify-end gap-2 pt-1">
@@ -283,33 +302,54 @@ export function LeaveForm() {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="rounded-lg border border-slate-200 p-3 text-sm">
-              Kode konfirmasi dikirim ke{" "}
-              <strong>{sent?.name}</strong>
-              {sent?.email ? ` · email ${sent.email}` : ""}
-              {sent?.phone ? ` · WA ${sent.phone}` : ""}.
-            </div>
             <div className="space-y-1.5">
-              <Label>Kode Konfirmasi</Label>
+              <Label>Kode Karyawan Pengganti</Label>
+              {sentSub && (
+                <p className="text-xs text-slate-400">
+                  Dikirim ke {sentSub.name}
+                  {sentSub.email ? ` · ${sentSub.email}` : ""}
+                  {sentSub.phone ? ` · WA ${sentSub.phone}` : ""}
+                </p>
+              )}
               <Input
                 inputMode="numeric"
                 maxLength={6}
                 placeholder="6 digit"
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                value={codeSub}
+                onChange={(e) => setCodeSub(e.target.value.replace(/\D/g, ""))}
                 className="tracking-widest"
               />
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400">Berlaku 5 menit.</span>
-                <button
-                  type="button"
-                  onClick={resend}
-                  disabled={cooldown > 0 || sending}
-                  className="font-medium text-brand-700 disabled:text-slate-400"
-                >
-                  {cooldown > 0 ? `Kirim ulang (${cooldown}s)` : "Kirim ulang kode"}
-                </button>
-              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Kode Manager / Lead</Label>
+              {sentMgr && (
+                <p className="text-xs text-slate-400">
+                  Dikirim ke {sentMgr.name}
+                  {sentMgr.email ? ` · ${sentMgr.email}` : ""}
+                  {sentMgr.phone ? ` · WA ${sentMgr.phone}` : ""}
+                </p>
+              )}
+              <Input
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="6 digit"
+                value={codeMgr}
+                onChange={(e) => setCodeMgr(e.target.value.replace(/\D/g, ""))}
+                className="tracking-widest"
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-400">Kedua kode berlaku 5 menit.</span>
+              <button
+                type="button"
+                onClick={resend}
+                disabled={cooldown > 0 || sending}
+                className="font-medium text-brand-700 disabled:text-slate-400"
+              >
+                {cooldown > 0 ? `Kirim ulang (${cooldown}s)` : "Kirim ulang kode"}
+              </button>
             </div>
 
             <div className="flex justify-between gap-2 pt-1">

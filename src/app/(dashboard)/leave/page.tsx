@@ -28,7 +28,10 @@ export default async function LeavePage() {
   const [mine, balance, pending, approvedAll] = await Promise.all([
     prisma.leaveRequest.findMany({
       where: { employeeId: user.id },
-      include: { substitute: { select: { name: true } } },
+      include: {
+        substitute: { select: { name: true } },
+        manager: { select: { name: true } },
+      },
       orderBy: { createdAt: "desc" },
     }),
     prisma.employee
@@ -43,6 +46,7 @@ export default async function LeavePage() {
           include: {
             employee: { select: { name: true } },
             substitute: { select: { name: true } },
+            manager: { select: { name: true } },
           },
           orderBy: { createdAt: "asc" },
         })
@@ -56,6 +60,7 @@ export default async function LeavePage() {
           include: {
             employee: { select: { name: true } },
             substitute: { select: { name: true } },
+            manager: { select: { name: true } },
           },
           orderBy: { startDate: "desc" },
         })
@@ -117,6 +122,7 @@ export default async function LeavePage() {
                     <TableHead>Hari</TableHead>
                     <TableHead>Alasan</TableHead>
                     <TableHead>Pengganti</TableHead>
+                  <TableHead>Manager/Lead</TableHead>
                     <TableHead>Tgl Pengajuan</TableHead>
                     <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
@@ -137,6 +143,9 @@ export default async function LeavePage() {
                       </TableCell>
                       <TableCell className="text-sm text-slate-500">
                         {l.substitute?.name ?? "-"}
+                      </TableCell>
+                      <TableCell className="text-sm text-slate-500">
+                        {l.manager?.name ?? "-"}
                       </TableCell>
                       <TableCell className="text-sm text-slate-500">
                         {formatDate(l.createdAt)}
@@ -179,6 +188,7 @@ export default async function LeavePage() {
                     <TableHead>Hari</TableHead>
                     <TableHead>Alasan</TableHead>
                     <TableHead>Pengganti</TableHead>
+                  <TableHead>Manager/Lead</TableHead>
                     <TableHead>Tgl Pengajuan</TableHead>
                     {isAdmin && <TableHead className="text-right">Aksi</TableHead>}
                   </TableRow>
@@ -199,6 +209,9 @@ export default async function LeavePage() {
                       </TableCell>
                       <TableCell className="text-sm text-slate-500">
                         {l.substitute?.name ?? "-"}
+                      </TableCell>
+                      <TableCell className="text-sm text-slate-500">
+                        {l.manager?.name ?? "-"}
                       </TableCell>
                       <TableCell className="text-sm text-slate-500">
                         {formatDate(l.createdAt)}
@@ -237,6 +250,7 @@ export default async function LeavePage() {
                   <TableHead>Hari</TableHead>
                   <TableHead>Alasan</TableHead>
                   <TableHead>Pengganti</TableHead>
+                  <TableHead>Manager/Lead</TableHead>
                   <TableHead>Tgl Pengajuan</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Catatan</TableHead>
@@ -255,6 +269,9 @@ export default async function LeavePage() {
                     </TableCell>
                     <TableCell className="text-sm text-slate-500">
                       {l.substitute?.name ?? "-"}
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-500">
+                      {l.manager?.name ?? "-"}
                     </TableCell>
                     <TableCell className="text-sm text-slate-500">
                       {formatDate(l.createdAt)}

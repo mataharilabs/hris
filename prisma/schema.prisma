@@ -65,6 +65,7 @@ model Employee {
   leaveRequests         LeaveRequest[]        @relation("EmployeeLeaves")
   reviewedLeaves        LeaveRequest[]        @relation("LeaveReviewer")
   substituteForLeaves   LeaveRequest[]        @relation("LeaveSubstitute")
+  managerForLeaves      LeaveRequest[]        @relation("LeaveManager")
   reimbursements        ReimbursementRequest[] @relation("EmployeeReimbursements")
   reviewedReimbursements ReimbursementRequest[] @relation("ReimbursementReviewer")
 
@@ -88,8 +89,9 @@ model LeaveRequest {
   reviewedAt   DateTime?
   reviewNote   String?
 
-  // Karyawan pengganti (dikonfirmasi lewat kode OTP ke email/WA-nya)
+  // Karyawan pengganti & Manager/Lead (dikonfirmasi lewat kode OTP masing-masing)
   substituteId String?
+  managerId    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -97,6 +99,7 @@ model LeaveRequest {
   employee   Employee  @relation("EmployeeLeaves", fields: [employeeId], references: [id], onDelete: Cascade)
   reviewer   Employee? @relation("LeaveReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   substitute Employee? @relation("LeaveSubstitute", fields: [substituteId], references: [id], onDelete: SetNull)
+  manager    Employee? @relation("LeaveManager", fields: [managerId], references: [id], onDelete: SetNull)
 
   @@index([employeeId])
   @@index([status])

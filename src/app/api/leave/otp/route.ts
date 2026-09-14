@@ -9,7 +9,8 @@ import { LEAVE_TYPE_LABELS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 
 const schema = z.object({
-  substituteId: z.string().min(1),
+  recipientId: z.string().min(1),
+  role: z.enum(["substitute", "manager"]).default("substitute"),
   type: z.enum(["ANNUAL", "SICK", "UNPAID", "OTHER"]),
   startDate: z.string().min(1),
   endDate: z.string().min(1),
@@ -20,12 +21,16 @@ const schema = z.object({
 const RESEND_COOLDOWN_MS = 60 * 1000; // 1 menit
 const TTL_MS = 5 * 60 * 1000; // berlaku 5 menit
 
+const ROLE_LABEL = {
+  substitute: "karyawan pengganti",
+  manager: "Manager/Lead penyetuju",
+} as const;
+
 function maskEmail(e?: string | null): string | null {
   if (!e) return null;
   const [u, d] = e.split("@");
   if (!d) return e;
-  const head = u.slice(0, 2);
-  return `${head}${"*".repeat(Math.max(1, u.length - 2))}@${d}`;
+  return `${u.slice(0, 2)}${"*".repeat(Math.max(1, u.length - 2))}@${d}`;
 }
 function maskPhone(p?: string | null): string | null {
   if (!p) return null;
@@ -33,29 +38,30 @@ function maskPhone(p?: string | null): string | null {
   return d.length <= 4 ? d : `${"*".repeat(d.length - 4)}${d.slice(-4)}`;
 }
 
-// Kirim kode konfirmasi ke karyawan pengganti (email & WhatsApp).
+// Kirim kode konfirmasi ke penerima (karyawan pengganti / Manager-Lead).
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
     const body = schema.parse(await req.json());
-    const { substituteId } = body;
+    const { recipientId, role } = body;
+    const roleLabel = ROLE_LABEL[role];
 
-    if (substituteId === user.id) {
-      return ok({ error: "Karyawan pengganti tidak boleh diri sendiri" }, 400);
+    if (recipientId === user.id) {
+      return ok({ error: `${roleLabel} tidak boleh diri sendiri` }, 400);
     }
 
-    const sub = await prisma.employee.findFirst({
-      where: { id: substituteId, companyId: user.companyId, isActive: true },
+    const rcpt = await prisma.employee.findFirst({
+      where: { id: recipientId, companyId: user.companyId, isActive: true },
       select: { id: true, name: true, email: true, phone: true },
     });
-    if (!sub) return ok({ error: "Karyawan pengganti tidak ditemukan" }, 404);
-    if (!sub.email && !sub.phone) {
-      return ok({ error: "Karyawan pengganti tidak punya email/WhatsApp" }, 400);
+    if (!rcpt) return ok({ error: `${roleLabel} tidak ditemukan` }, 404);
+    if (!rcpt.email && !rcpt.phone) {
+      return ok({ error: `${roleLabel} tidak punya email/WhatsApp` }, 400);
     }
 
-    // Rate limit resend (1 menit sejak kode terakhir).
+    // Rate limit resend (1 menit sejak kode terakhir untuk penerima ini).
     const last = await prisma.substituteOtp.findFirst({
-      where: { requesterId: user.id, substituteId, consumedAt: null },
+      where: { requesterId: user.id, substituteId: recipientId, consumedAt: null },
       orderBy: { createdAt: "desc" },
     });
     if (last && Date.now() - last.createdAt.getTime() < RESEND_COOLDOWN_MS) {
@@ -67,12 +73,10 @@ export async function POST(req: NextRequest) {
 
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const expiresAt = new Date(Date.now() + TTL_MS);
-
     await prisma.substituteOtp.create({
-      data: { requesterId: user.id, substituteId, code, expiresAt },
+      data: { requesterId: user.id, substituteId: recipientId, code, expiresAt },
     });
 
-    // Rangkai detail pengajuan untuk ditampilkan ke pengganti.
     const start = new Date(body.startDate);
     const end = new Date(body.endDate);
     const validDates = !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime());
@@ -87,11 +91,11 @@ export async function POST(req: NextRequest) {
       (body.task ? `• Tugas/hand-over: ${body.task}\n` : "");
 
     const result = await notifyResult({
-      to: { email: sub.email, phone: sub.phone },
-      subject: "Kode Konfirmasi Karyawan Pengganti Cuti",
+      to: { email: rcpt.email, phone: rcpt.phone },
+      subject: `Kode Konfirmasi Cuti (${role === "manager" ? "Manager/Lead" : "Pengganti"})`,
       message:
-        `Halo ${sub.name},\n\n` +
-        `${user.name ?? "Seorang rekan"} mengajukan cuti dan menjadikan Anda karyawan pengganti.\n\n` +
+        `Halo ${rcpt.name},\n\n` +
+        `${user.name ?? "Seorang rekan"} mengajukan cuti dan menjadikan Anda ${roleLabel}.\n\n` +
         detail +
         `\nKode konfirmasi: *${code}* (berlaku 5 menit).\n` +
         `Bagikan kode ini ke pemohon bila Anda menyetujui.\n\n— HRIS AsiaCommerce`,
@@ -113,10 +117,10 @@ export async function POST(req: NextRequest) {
       ok: true,
       sentEmail,
       sentWhatsapp,
-      substitute: {
-        name: sub.name,
-        email: maskEmail(sub.email),
-        phone: maskPhone(sub.phone),
+      recipient: {
+        name: rcpt.name,
+        email: maskEmail(rcpt.email),
+        phone: maskPhone(rcpt.phone),
       },
     });
   } catch (e) {
