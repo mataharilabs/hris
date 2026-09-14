@@ -39,6 +39,7 @@ export const authConfig = {
       const isPublic =
         path.startsWith("/login") ||
         path.startsWith("/no-access") ||
+        path.startsWith("/public") ||
         path === "/";
 
       if (isPublic) return true;

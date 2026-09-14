@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { buttonVariants } from "@/components/ui/button";
 import { ImportButton } from "@/components/employees/ImportButton";
 import { EmployeeList } from "@/components/employees/EmployeeList";
+import { ShareButton } from "@/components/dashboard/ShareButton";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export default async function EmployeesPage() {
         description="Database karyawan (bersumber dari SSO). Gaji & kuota cuti dikelola di HRIS."
         action={
           <div className="flex items-center gap-2">
+            <ShareButton />
             <ImportButton />
             <a
               href="/api/employees/export"

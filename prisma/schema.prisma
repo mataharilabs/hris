@@ -14,11 +14,12 @@ datasource db {
 }
 
 model Company {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  name       String
+  slug       String   @unique
+  shareToken String?  @unique // token untuk link publik (demografi & data karyawan)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   employees Employee[]
 
@@ -41,6 +42,7 @@ model Employee {
   officeName       String?
   employmentStatus EmploymentStatus?
   gender           Gender?
+  maritalStatus    MaritalStatus?
   birthDate        DateTime?
   joinDate         DateTime?
 
@@ -152,6 +154,13 @@ enum RequestStatus {
 enum Gender {
   MALE
   FEMALE
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
 }
 
 enum EmploymentStatus {

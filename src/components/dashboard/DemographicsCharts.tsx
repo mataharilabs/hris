@@ -52,12 +52,16 @@ export function DemographicsCharts({
   departments,
   employmentStatus,
   tenureBands,
+  maritalStatus,
+  offices,
 }: {
   gender: NamedCount[];
   ageBands: NamedCount[];
   departments: NamedCount[];
   employmentStatus: NamedCount[];
   tenureBands: NamedCount[];
+  maritalStatus: NamedCount[];
+  offices: NamedCount[];
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -74,6 +78,48 @@ export function DemographicsCharts({
               label
             >
               {gender.map((_, i) => (
+                <Cell key={i} fill={COLORS[i % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip />
+          </PieChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      <ChartCard title="Status Pernikahan">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={maritalStatus}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              outerRadius={90}
+              label
+            >
+              {maritalStatus.map((_, i) => (
+                <Cell key={i} fill={COLORS[i % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip />
+          </PieChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      <ChartCard title="Lokasi Kantor">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={offices}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              outerRadius={90}
+              label
+            >
+              {offices.map((_, i) => (
                 <Cell key={i} fill={COLORS[i % COLORS.length]} />
               ))}
             </Pie>

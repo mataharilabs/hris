@@ -45,6 +45,12 @@ async function upsertEmployeeMirror(companyId: string, e: SsoEmployee) {
     officeName: e.officeName,
     employmentStatus: e.employmentStatus ?? null,
     gender: e.gender ?? null,
+    maritalStatus: (e.maritalStatus as
+      | "SINGLE"
+      | "MARRIED"
+      | "DIVORCED"
+      | "WIDOWED"
+      | null) ?? null,
     birthDate: toDate(e.birthDate),
     joinDate: toDate(e.joinDate),
   };

@@ -14,6 +14,7 @@ export default auth((req) => {
   const isPublic =
     path.startsWith("/login") ||
     path.startsWith("/no-access") ||
+    path.startsWith("/public") ||
     path === "/";
 
   const isLoggedIn = !!req.auth?.user;

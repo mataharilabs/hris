@@ -47,18 +47,36 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
+    // Sisa cuti tahunan per karyawan (kuota - ANNUAL PENDING/APPROVED tahun ini).
+    const year = new Date().getFullYear();
+    const usedRows = await prisma.leaveRequest.groupBy({
+      by: ["employeeId"],
+      where: {
+        type: "ANNUAL",
+        status: { in: ["PENDING", "APPROVED"] },
+        startDate: { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) },
+        employee: { companyId: user.companyId },
+      },
+      _sum: { days: true },
+    });
+    const usedByEmp = new Map(usedRows.map((r) => [r.employeeId, r._sum.days ?? 0]));
+
     const items = rows.map((e) => {
       const p = e.ssoUserId ? profileBySso.get(e.ssoUserId) : undefined;
+      const used = usedByEmp.get(e.id) ?? 0;
       return {
         id: e.id,
         name: e.name,
         email: e.email,
         phone: e.phone,
         departmentName: e.departmentName,
+        officeName: e.officeName,
         employmentStatus: e.employmentStatus,
         gender: e.gender,
         birthDate: e.birthDate,
         joinDate: e.joinDate,
+        leaveQuota: e.leaveQuota,
+        leaveRemaining: Math.max(0, e.leaveQuota - used),
         // Field profil dari SSO (tak disimpan di cermin lokal)
         addressKtp: p?.addressKtp ?? null,
         maritalStatus: p?.maritalStatus ?? null,

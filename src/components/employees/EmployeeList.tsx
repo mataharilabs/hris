@@ -26,6 +26,7 @@ type Item = {
   email: string;
   phone: string | null;
   departmentName: string | null;
+  officeName: string | null;
   employmentStatus: string | null;
   addressKtp: string | null;
   gender: string | null;
@@ -34,6 +35,8 @@ type Item = {
   nik: string | null;
   npwp: string | null;
   joinDate: string | null;
+  leaveQuota: number;
+  leaveRemaining: number;
 };
 
 type Filters = { departments: string[]; offices: string[]; levels: string[] };
@@ -170,6 +173,7 @@ export function EmployeeList() {
                   <TableHead>Nama</TableHead>
                   <TableHead>Telepon</TableHead>
                   <TableHead>Departemen/Divisi</TableHead>
+                  <TableHead>Lokasi Kantor</TableHead>
                   <TableHead>Alamat KTP</TableHead>
                   <TableHead>Gender</TableHead>
                   <TableHead>Status Pernikahan</TableHead>
@@ -177,6 +181,7 @@ export function EmployeeList() {
                   <TableHead>NIK</TableHead>
                   <TableHead>NPWP</TableHead>
                   <TableHead>Tanggal Bergabung</TableHead>
+                  <TableHead>Sisa Cuti</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -202,6 +207,9 @@ export function EmployeeList() {
                           {EMPLOYMENT_STATUS_LABELS[e.employmentStatus]}
                         </div>
                       )}
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {e.officeName ?? "-"}
                     </TableCell>
                     <TableCell className="max-w-[220px] text-sm text-slate-600">
                       {e.addressKtp ?? "-"}
@@ -235,6 +243,12 @@ export function EmployeeList() {
                           {tenureYears(e.joinDate)} tahun
                         </div>
                       )}
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      <span className="font-medium text-slate-800">
+                        {e.leaveRemaining}
+                      </span>
+                      <span className="text-slate-400"> / {e.leaveQuota}</span>
                     </TableCell>
                     <TableCell className="text-right">
                       <Link
