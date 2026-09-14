@@ -175,22 +175,35 @@ export function DemographicsCharts({
       </ChartCard>
 
       <div className="lg:col-span-2">
-        <ChartCard title="Distribusi Departemen">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={departments} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-              <XAxis type="number" allowDecimals={false} fontSize={12} />
-              <YAxis
-                type="category"
-                dataKey="name"
-                width={140}
-                fontSize={12}
-              />
-              <Tooltip />
-              <Bar dataKey="value" fill="#e60840" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
+        <Card>
+          <CardHeader>
+            <CardTitle>Distribusi Departemen</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {/* Tinggi dinamis + interval={0} agar semua nama departemen tampil */}
+            <div style={{ height: Math.max(256, departments.length * 34) }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={departments}
+                  layout="vertical"
+                  margin={{ left: 8, right: 24 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} fontSize={12} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={150}
+                    fontSize={12}
+                    interval={0}
+                  />
+                  <Tooltip />
+                  <Bar dataKey="value" fill="#e60840" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

@@ -4,9 +4,11 @@ import { buttonVariants } from "@/components/ui/button";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { annualLeaveBalance } from "@/lib/leave";
+import { listEmployees } from "@/lib/sso-client";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ess/StatusBadge";
+import { EmployeeDetails } from "@/components/employees/EmployeeDetails";
 import {
   EMPLOYMENT_STATUS_LABELS,
   LEAVE_TYPE_LABELS,
@@ -20,6 +22,12 @@ export default async function EssHomePage() {
 
   const emp = await prisma.employee.findUnique({ where: { id: user.id } });
   const balance = await annualLeaveBalance(user.id, emp?.leaveQuota ?? 0);
+
+  // Profil lengkap milik sendiri dari SSO (untuk panel "Details").
+  const ssoList = emp?.ssoUserId
+    ? await listEmployees({ companyId: user.ssoCompanyId })
+    : [];
+  const full = ssoList.find((x) => x.id === emp?.ssoUserId) ?? null;
 
   const [recentLeave, recentReimb] = await Promise.all([
     prisma.leaveRequest.findMany({
@@ -127,6 +135,10 @@ export default async function EssHomePage() {
             ))
           )}
         </RecentCard>
+      </div>
+
+      <div className="mt-4">
+        <EmployeeDetails full={full} />
       </div>
     </div>
   );

@@ -75,6 +75,7 @@ export function EmployeeDetails({ full }: { full: SsoEmployee | null }) {
                 />
                 <Row label="NIK" value={full.nik} />
                 <Row label="NPWP" value={full.npwp} />
+                <Row label="Alamat KTP" value={full.addressKtp} />
                 <Row label="Alamat Domisili" value={full.addressDomicile} />
                 <Row label="Email Pribadi" value={full.personalEmail} />
               </div>
