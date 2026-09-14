@@ -5,6 +5,7 @@ export const GRACE_MS = 15 * 60 * 1000; // toleransi check-in 15 menit
 const ROOM_SEED = [
   { key: "UTAMA", name: "Ruang Meeting Utama" },
   { key: "SERVER", name: "Ruang Meeting Server" },
+  { key: "GUDANG", name: "Ruang Gudang" },
 ];
 
 /** Pastikan 2 ruang rapat tersedia (idempotent). */

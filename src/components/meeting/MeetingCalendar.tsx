@@ -257,7 +257,7 @@ export function MeetingCalendar() {
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {rooms.map((room) => {
             const items = (data?.bookings ?? []).filter((b) => b.roomId === room.id);
             return (
