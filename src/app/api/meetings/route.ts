@@ -177,31 +177,38 @@ export async function POST(req: NextRequest) {
       })),
     });
 
-    // Notifikasi ke grup WhatsApp kantor (best-effort).
+    // Notifikasi ke grup WhatsApp kantor (best-effort) — gaya humanis.
+    const who = user.name ?? "Karyawan";
+    const team = department ? `${department} (${who})` : who;
+    const footer =
+      `\n\nBagi yang ingin memakai ruangan di luar jam tersebut, silakan ` +
+      `reservasi melalui sistem seperti biasa. Semangat kerjanya!\n— HRIS.asiacommerce.net`;
+
     if (rows.length === 1 && !seriesId) {
       const r = rows[0];
       await notifyGroup(
-        `📅 *Ruang Meeting di-booking*\n` +
-          `• Ruang: ${room.name}\n` +
-          `• Tanggal: ${wibDate(r.startAt)}\n` +
-          `• Jam: ${wibTime(r.startAt)}–${wibTime(r.endAt)} WIB\n` +
-          (department ? `• Divisi: ${department}\n` : "") +
-          `• Oleh: ${user.name ?? "Karyawan"}\n` +
-          `• Agenda: ${data.title}\n\n— HRIS AsiaCommerce`
+        `Halo semua! Sekadar info, ruangan berikut telah di-booking untuk agenda internal:\n\n` +
+          `📍 Ruang: ${room.name}\n` +
+          `📅 Tanggal: ${wibDate(r.startAt)}\n` +
+          `🕒 Jam: (${wibTime(r.startAt)}–${wibTime(r.endAt)} WIB)\n` +
+          `👥 Tim: ${team}\n` +
+          `📝 Agenda: ${data.title}` +
+          footer
       );
     } else {
       const first = rows[0];
       const last = rows[rows.length - 1];
       await notifyGroup(
-        `🔁 *Meeting Berulang di-booking*\n` +
-          `• Ruang: ${room.name}\n` +
-          `• Jam: ${wibTime(first.startAt)}–${wibTime(first.endAt)} WIB\n` +
-          `• ${rows.length} pertemuan: ${wibDate(first.startAt)} s/d ${wibDate(last.startAt)}\n` +
-          (department ? `• Divisi: ${department}\n` : "") +
-          `• Oleh: ${user.name ?? "Karyawan"}\n` +
-          `• Agenda: ${data.title}\n` +
-          (skipped.length ? `• Dilewati (bentrok): ${skipped.length} tanggal\n` : "") +
-          `\n— HRIS AsiaCommerce`
+        `Halo semua! Info ya, ada jadwal meeting berulang yang baru di-booking:\n\n` +
+          `📍 Ruang: ${room.name}\n` +
+          `🕒 Jam: (${wibTime(first.startAt)}–${wibTime(first.endAt)} WIB)\n` +
+          `🔁 ${rows.length} pertemuan: ${wibDate(first.startAt)} s/d ${wibDate(last.startAt)}\n` +
+          `👥 Tim: ${team}\n` +
+          `📝 Agenda: ${data.title}` +
+          (skipped.length
+            ? `\n⚠️ ${skipped.length} tanggal dilewati karena bentrok`
+            : "") +
+          footer
       );
     }
 
