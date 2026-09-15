@@ -35,6 +35,7 @@ export async function syncEmployeesFromSSO(
 }
 
 async function upsertEmployeeMirror(companyId: string, e: SsoEmployee) {
+  // Selalu diperbarui dari SSO (sumber = SSO).
   const cache = {
     name: e.name ?? e.email,
     phone: e.phone,
@@ -51,11 +52,18 @@ async function upsertEmployeeMirror(companyId: string, e: SsoEmployee) {
       | "DIVORCED"
       | "WIDOWED"
       | null) ?? null,
-    birthDate: toDate(e.birthDate),
     joinDate: toDate(e.joinDate),
     nik: e.nik,
     npwp: e.npwp,
     addressKtp: e.addressKtp,
+  };
+
+  // Bisa diedit sendiri di HRIS → hanya backfill saat lokal masih kosong.
+  const selfEditable = {
+    birthDate: toDate(e.birthDate),
+    emergencyName: e.emergencyName,
+    emergencyRelation: e.emergencyRelation,
+    emergencyPhone: e.emergencyPhone,
   };
 
   const existing =
@@ -63,15 +71,25 @@ async function upsertEmployeeMirror(companyId: string, e: SsoEmployee) {
     (await prisma.employee.findUnique({ where: { email: e.email } }));
 
   if (existing) {
+    const backfill: Record<string, unknown> = {};
+    if (existing.birthDate == null && selfEditable.birthDate)
+      backfill.birthDate = selfEditable.birthDate;
+    if (existing.emergencyName == null && selfEditable.emergencyName)
+      backfill.emergencyName = selfEditable.emergencyName;
+    if (existing.emergencyRelation == null && selfEditable.emergencyRelation)
+      backfill.emergencyRelation = selfEditable.emergencyRelation;
+    if (existing.emergencyPhone == null && selfEditable.emergencyPhone)
+      backfill.emergencyPhone = selfEditable.emergencyPhone;
+
     await prisma.employee.update({
       where: { id: existing.id },
-      data: { ssoUserId: e.id, ...cache },
+      data: { ssoUserId: e.id, ...cache, ...backfill },
     });
     return existing.id;
   }
 
   const created = await prisma.employee.create({
-    data: { email: e.email, ssoUserId: e.id, companyId, ...cache },
+    data: { email: e.email, ssoUserId: e.id, companyId, ...cache, ...selfEditable },
   });
   return created.id;
 }

@@ -9,6 +9,11 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ess/StatusBadge";
 import { EmployeeDetails } from "@/components/employees/EmployeeDetails";
+import { OnboardingQuest } from "@/components/gamification/OnboardingQuest";
+import { AvatarUpload } from "@/components/gamification/AvatarUpload";
+import { SelfProfileEditor } from "@/components/gamification/SelfProfileEditor";
+import { DailyCheckin } from "@/components/gamification/DailyCheckin";
+import { ActivityFeed } from "@/components/gamification/ActivityFeed";
 import {
   EMPLOYMENT_STATUS_LABELS,
   LEAVE_TYPE_LABELS,
@@ -27,7 +32,18 @@ export default async function EssHomePage() {
   const ssoList = emp?.ssoUserId
     ? await listEmployees({ companyId: user.ssoCompanyId })
     : [];
-  const full = ssoList.find((x) => x.id === emp?.ssoUserId) ?? null;
+  const ssoFull = ssoList.find((x) => x.id === emp?.ssoUserId) ?? null;
+  // Field yang bisa diedit sendiri di HRIS → tampilkan nilai cermin (bukan SSO).
+  const full =
+    ssoFull && emp
+      ? {
+          ...ssoFull,
+          birthDate: emp.birthDate ? emp.birthDate.toISOString() : null,
+          emergencyName: emp.emergencyName,
+          emergencyRelation: emp.emergencyRelation,
+          emergencyPhone: emp.emergencyPhone,
+        }
+      : ssoFull;
 
   const [recentLeave, recentReimb] = await Promise.all([
     prisma.leaveRequest.findMany({
@@ -48,15 +64,34 @@ export default async function EssHomePage() {
         title={`Halo, ${user.name ?? "Karyawan"}`}
         description="Layanan mandiri karyawan (ESS)."
         action={
-          <Link
-            href="/leave?new=1"
-            className={buttonVariants({ variant: "default" })}
-          >
-            <Plus className="h-4 w-4" />
-            Ajukan Cuti
-          </Link>
+          <div className="flex items-center gap-2">
+            <DailyCheckin />
+            <Link
+              href="/leave?new=1"
+              className={buttonVariants({ variant: "default" })}
+            >
+              <Plus className="h-4 w-4" />
+              Ajukan Cuti
+            </Link>
+          </div>
         }
       />
+
+      <OnboardingQuest />
+
+      <Card className="mb-6">
+        <CardContent className="flex flex-col gap-5 p-5 md:flex-row md:items-start md:gap-8">
+          <AvatarUpload name={user.name ?? "Karyawan"} initialPhoto={emp?.photoDataUrl ?? null} />
+          <div className="flex-1">
+            <SelfProfileEditor
+              birthDate={emp?.birthDate ? emp.birthDate.toISOString() : null}
+              emergencyName={emp?.emergencyName ?? null}
+              emergencyRelation={emp?.emergencyRelation ?? null}
+              emergencyPhone={emp?.emergencyPhone ?? null}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
@@ -135,6 +170,10 @@ export default async function EssHomePage() {
             ))
           )}
         </RecentCard>
+      </div>
+
+      <div className="mt-4">
+        <ActivityFeed />
       </div>
 
       <div className="mt-4">

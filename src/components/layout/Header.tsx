@@ -6,6 +6,7 @@ import { logout } from "@/lib/actions/auth";
 import { initials } from "@/lib/utils";
 import { ROLE_LABELS, type NavRole } from "@/lib/constants";
 import { MobileNav } from "./MobileNav";
+import { GamificationBar } from "@/components/gamification/GamificationBar";
 
 type HeaderProps = {
   name: string;
@@ -30,7 +31,9 @@ export function Header({ name, email, role, companyName, ssoUrl }: HeaderProps) 
         </div>
       </div>
 
-      <div className="relative">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <GamificationBar />
+        <div className="relative">
         <button
           onClick={() => setOpen((v) => !v)}
           className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-50 cursor-pointer"
@@ -67,6 +70,7 @@ export function Header({ name, email, role, companyName, ssoUrl }: HeaderProps) 
             </div>
           </>
         )}
+        </div>
       </div>
     </header>
   );

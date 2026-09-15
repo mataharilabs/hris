@@ -6,6 +6,7 @@ import {
   Receipt,
   UserCircle,
   DoorOpen,
+  Heart,
   type LucideIcon,
 } from "lucide-react";
 
@@ -39,6 +40,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Cuti", href: "/leave", icon: CalendarDays, roles: ALL },
       { label: "Reimbursement", href: "/reimbursement", icon: Receipt, roles: ALL },
       { label: "Meeting Room", href: "/meeting-rooms", icon: DoorOpen, roles: ALL },
+      { label: "Kudos Wall", href: "/kudos", icon: Heart, roles: ALL },
     ],
   },
 ];

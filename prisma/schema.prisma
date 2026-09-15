@@ -45,17 +45,24 @@ model Employee {
   employmentStatus EmploymentStatus?
   gender           Gender?
   maritalStatus    MaritalStatus?
-  birthDate        DateTime?
   joinDate         DateTime?
   nik              String?
   npwp             String?
   addressKtp       String?
 
+  // Bisa diedit sendiri di HRIS (sync hanya isi bila kosong, tidak menimpa)
+  birthDate         DateTime?
+  emergencyName     String?
+  emergencyRelation String?
+  emergencyPhone    String?
+
   // Milik HRIS (tidak ditimpa saat sync)
-  monthlySalary Int? // gaji pokok bulanan (IDR)
-  leaveQuota    Int     @default(12) // jatah cuti tahunan (hari)
-  role          String  @default("EMPLOYEE") // HR_ADMIN | HR_STAFF | EMPLOYEE
-  isActive      Boolean @default(true)
+  monthlySalary      Int? // gaji pokok bulanan (IDR)
+  leaveQuota         Int       @default(12) // jatah cuti tahunan (hari)
+  role               String    @default("EMPLOYEE") // HR_ADMIN | HR_STAFF | EMPLOYEE
+  isActive           Boolean   @default(true)
+  photoDataUrl       String? // foto profil (data URL base64, diperkecil)
+  onboardingClaimedAt DateTime?
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -70,10 +77,81 @@ model Employee {
   meetingBookings       MeetingBooking[]      @relation("EmployeeBookings")
   reimbursements        ReimbursementRequest[] @relation("EmployeeReimbursements")
   reviewedReimbursements ReimbursementRequest[] @relation("ReimbursementReviewer")
+  pointEntries          PointEntry[]
+  kudosSent             Kudos[]               @relation("KudosSender")
+  kudosReceived         Kudos[]               @relation("KudosRecipient")
+  kudosLikes            KudosLike[]
+  kudosComments         KudosComment[]
 
   @@index([companyId])
   @@index([ssoUserId])
   @@map("employees")
+}
+
+// Ledger poin (sumber Activity Feed & total poin tahun berjalan).
+model PointEntry {
+  id         String    @id @default(cuid())
+  employeeId String
+  type       PointType
+  amount     Int
+  note       String?
+  createdAt  DateTime  @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, createdAt])
+  @@map("point_entries")
+}
+
+model Kudos {
+  id          String   @id @default(cuid())
+  senderId    String
+  recipientId String
+  message     String
+  createdAt   DateTime @default(now())
+
+  sender    Employee       @relation("KudosSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient Employee       @relation("KudosRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  likes     KudosLike[]
+  comments  KudosComment[]
+
+  @@index([createdAt])
+  @@index([senderId, createdAt])
+  @@map("kudos")
+}
+
+model KudosLike {
+  id         String   @id @default(cuid())
+  kudosId    String
+  employeeId String
+  createdAt  DateTime @default(now())
+
+  kudos    Kudos    @relation(fields: [kudosId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([kudosId, employeeId])
+  @@map("kudos_likes")
+}
+
+model KudosComment {
+  id         String   @id @default(cuid())
+  kudosId    String
+  employeeId String
+  message    String
+  createdAt  DateTime @default(now())
+
+  kudos    Kudos    @relation(fields: [kudosId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([kudosId, createdAt])
+  @@map("kudos_comments")
+}
+
+enum PointType {
+  KUDOS_SENT
+  KUDOS_RECEIVED
+  DAILY_CHECKIN
+  ONBOARDING
 }
 
 model LeaveRequest {

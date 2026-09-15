@@ -55,6 +55,22 @@ export function initials(name?: string | null): string {
     .toUpperCase();
 }
 
+/** Waktu relatif singkat Bahasa Indonesia: "baru saja", "5 mnt lalu", "2 jam lalu". */
+export function timeAgo(value: Date | string | null | undefined): string {
+  if (!value) return "-";
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return "-";
+  const s = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (s < 45) return "baru saja";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} mnt lalu`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} jam lalu`;
+  const dd = Math.floor(h / 24);
+  if (dd < 7) return `${dd} hari lalu`;
+  return formatDate(d);
+}
+
 /** Umur (tahun) dari tanggal lahir. */
 export function ageFrom(value: Date | string | null | undefined): number | null {
   if (!value) return null;
