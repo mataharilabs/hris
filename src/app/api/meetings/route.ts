@@ -10,26 +10,8 @@ import {
   hasOverlap,
   generateOccurrenceDates,
 } from "@/lib/meeting";
-import { notifyGroup } from "@/lib/notify-client";
 
 const TZ = "+07:00"; // WIB
-
-function wibTime(d: Date): string {
-  return new Intl.DateTimeFormat("id-ID", {
-    timeZone: "Asia/Jakarta",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(d);
-}
-function wibDate(d: Date): string {
-  return new Intl.DateTimeFormat("id-ID", {
-    timeZone: "Asia/Jakarta",
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  }).format(d);
-}
 
 // GET ?date=YYYY-MM-DD — jadwal ruang untuk satu hari (WIB).
 export async function GET(req: NextRequest) {
@@ -177,40 +159,7 @@ export async function POST(req: NextRequest) {
       })),
     });
 
-    // Notifikasi ke grup WhatsApp kantor (best-effort) — gaya humanis.
-    const who = user.name ?? "Karyawan";
-    const team = department ? `${department} (${who})` : who;
-    const footer =
-      `\n\nBagi yang ingin memakai ruangan di luar jam tersebut, silakan ` +
-      `reservasi melalui sistem seperti biasa. Semangat kerjanya!\n— HRIS.asiacommerce.net`;
-
-    if (rows.length === 1 && !seriesId) {
-      const r = rows[0];
-      await notifyGroup(
-        `Halo semua! Sekadar info, ruangan berikut telah di-booking untuk agenda internal:\n\n` +
-          `📍 Ruang: ${room.name}\n` +
-          `📅 Tanggal: ${wibDate(r.startAt)}\n` +
-          `🕒 Jam: (${wibTime(r.startAt)}–${wibTime(r.endAt)} WIB)\n` +
-          `👥 Tim: ${team}\n` +
-          `📝 Agenda: ${data.title}` +
-          footer
-      );
-    } else {
-      const first = rows[0];
-      const last = rows[rows.length - 1];
-      await notifyGroup(
-        `Halo semua! Info ya, ada jadwal meeting berulang yang baru di-booking:\n\n` +
-          `📍 Ruang: ${room.name}\n` +
-          `🕒 Jam: (${wibTime(first.startAt)}–${wibTime(first.endAt)} WIB)\n` +
-          `🔁 ${rows.length} pertemuan: ${wibDate(first.startAt)} s/d ${wibDate(last.startAt)}\n` +
-          `👥 Tim: ${team}\n` +
-          `📝 Agenda: ${data.title}` +
-          (skipped.length
-            ? `\n⚠️ ${skipped.length} tanggal dilewati karena bentrok`
-            : "") +
-          footer
-      );
-    }
+    // Notifikasi grup per-booking dinonaktifkan (cukup reminder harian 09:00).
 
     return ok({ created: rows.length, skipped }, 201);
   } catch (e) {
