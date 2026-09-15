@@ -23,6 +23,13 @@ export async function GET(req: NextRequest) {
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Jakarta",
   }).format(new Date());
+
+  // Hari kerja Senin–Sabtu. Minggu (getUTCDay() === 0) → tidak kirim.
+  const weekday = new Date(`${today}T12:00:00Z`).getUTCDay();
+  if (weekday === 0) {
+    return Response.json({ ok: true, skipped: "sunday" });
+  }
+
   const dayStart = new Date(`${today}T00:00:00${TZ}`);
   const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
@@ -38,15 +45,6 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  if (bookings.length === 0) {
-    return Response.json({ ok: true, count: 0 });
-  }
-
-  const lines = bookings.map(
-    (b, i) =>
-      `${i + 1}. ${wibTime(b.startAt)}–${wibTime(b.endAt)} • ${b.room.name} — ` +
-      `${b.title}${b.department ? ` (${b.department})` : ""} — ${b.employee.name}`
-  );
   const dateLabel = new Intl.DateTimeFormat("id-ID", {
     timeZone: "Asia/Jakarta",
     weekday: "long",
@@ -55,9 +53,30 @@ export async function GET(req: NextRequest) {
     year: "numeric",
   }).format(dayStart);
 
-  await notifyGroup(
-    `🗓️ *Jadwal Meeting Hari Ini*\n${dateLabel}\n\n${lines.join("\n")}\n\n— HRIS AsiaCommerce`
-  );
+  const footer =
+    `\n\nBook & lihat jadwal ruang meeting hanya di *hris.asiacommerce.net* 🙏`;
 
+  let message: string;
+  if (bookings.length === 0) {
+    message =
+      `Selamat pagi, teman-teman 👋\n\n` +
+      `Hari ini (${dateLabel}) belum ada ruang meeting yang di-book. ` +
+      `Ruangan bebas dipakai — selamat bekerja! 💪` +
+      footer;
+  } else {
+    const lines = bookings.map(
+      (b, i) =>
+        `${i + 1}. ${wibTime(b.startAt)}–${wibTime(b.endAt)} • ${b.room.name} — ` +
+        `${b.title}${b.department ? ` (${b.department})` : ""} — ${b.employee.name}`
+    );
+    message =
+      `Selamat pagi, teman-teman 👋\n\n` +
+      `Berikut jadwal meeting hari ini (${dateLabel}):\n\n` +
+      `${lines.join("\n")}\n\n` +
+      `Buat yang sudah booking, jangan lupa *Check-in* di HRIS ya biar ruangannya tidak otomatis dilepas. 🙌` +
+      footer;
+  }
+
+  await notifyGroup(message);
   return Response.json({ ok: true, count: bookings.length });
 }
