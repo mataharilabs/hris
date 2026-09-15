@@ -23,13 +23,19 @@ export async function usedAnnualLeave(
   return rows.reduce((sum, r) => sum + r.days, 0);
 }
 
-/** Sisa saldo cuti tahunan. */
+/** Sisa saldo cuti tahunan (dengan penyesuaian manual HR). */
 export async function annualLeaveBalance(
   employeeId: string,
-  quota: number
-): Promise<{ quota: number; used: number; remaining: number }> {
+  quota: number,
+  adjustment = 0
+): Promise<{ quota: number; used: number; remaining: number; adjustment: number }> {
   const used = await usedAnnualLeave(employeeId);
-  return { quota, used, remaining: Math.max(0, quota - used) };
+  return {
+    quota,
+    used,
+    adjustment,
+    remaining: Math.max(0, quota - used + adjustment),
+  };
 }
 
 /** Jumlah hari (inklusif) antara dua tanggal. */

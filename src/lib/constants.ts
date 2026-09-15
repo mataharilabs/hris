@@ -27,9 +27,17 @@ export const EMPLOYMENT_STATUS_LABELS: Record<string, string> = {
 
 export const LEAVE_TYPE_LABELS: Record<string, string> = {
   ANNUAL: "Cuti Tahunan",
-  SICK: "Sakit",
+  SICK: "Cuti Sakit",
+  SICK_CERTIFIED: "Cuti Sakit Dengan Surat",
   UNPAID: "Cuti Tanpa Gaji",
   OTHER: "Lainnya",
+};
+
+// Pilihan jenis cuti yang tampil di form pengajuan (hanya 3).
+export const LEAVE_TYPE_OPTIONS: Record<string, string> = {
+  ANNUAL: "Cuti Tahunan",
+  SICK: "Cuti Sakit",
+  SICK_CERTIFIED: "Cuti Sakit Dengan Surat",
 };
 
 export const REQUEST_STATUS_LABELS: Record<string, string> = {

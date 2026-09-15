@@ -26,7 +26,11 @@ export default async function EssHomePage() {
   const user = await requireUser();
 
   const emp = await prisma.employee.findUnique({ where: { id: user.id } });
-  const balance = await annualLeaveBalance(user.id, emp?.leaveQuota ?? 0);
+  const balance = await annualLeaveBalance(
+    user.id,
+    emp?.leaveQuota ?? 0,
+    emp?.leaveAdjustment ?? 0
+  );
 
   // Profil lengkap milik sendiri dari SSO (untuk panel "Details").
   const ssoList = emp?.ssoUserId

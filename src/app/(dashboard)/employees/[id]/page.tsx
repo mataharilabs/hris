@@ -39,7 +39,7 @@ export default async function EmployeeDetailPage({
   });
   if (!e) notFound();
 
-  const balance = await annualLeaveBalance(e.id, e.leaveQuota);
+  const balance = await annualLeaveBalance(e.id, e.leaveQuota, e.leaveAdjustment);
   const ssoUrl = process.env.SSO_URL ?? "https://sso.asiacommerce.net";
 
   // Profil lengkap dari SSO (untuk panel "Details").
@@ -169,6 +169,7 @@ export default async function EmployeeDetailPage({
                 employeeId={e.id}
                 initialSalary={e.monthlySalary}
                 initialQuota={e.leaveQuota}
+                initialRemaining={balance.remaining}
               />
             </CardContent>
           </Card>

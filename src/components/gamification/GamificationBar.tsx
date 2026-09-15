@@ -61,14 +61,16 @@ export function GamificationBar() {
   return (
     <div className="flex items-center gap-2">
       <span
-        title="Poin tahun ini"
+        title={"Poin tahun ini.\n\nPoint ini masih dalam pengembangan"}
         className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700"
       >
         <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
         {summary?.points ?? 0}
       </span>
       <span
-        title="Sisa kuota kudos hari ini"
+        title={
+          "Sisa kuota kudos hari ini.\n\nFitur Kudos adalah sistem apresiasi digital antar-rekan kerja (peer-to-peer recognition) di dalam platform internal kantor. Intinya, fitur ini berfungsi sebagai sarana resmi dan kasual bagi karyawan untuk saling mengucapkan terima kasih atau memuji kinerja satu sama lain secara publik."
+        }
         className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700"
       >
         <Heart className="h-3.5 w-3.5" />

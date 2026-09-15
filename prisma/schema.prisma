@@ -59,6 +59,7 @@ model Employee {
   // Milik HRIS (tidak ditimpa saat sync)
   monthlySalary      Int? // gaji pokok bulanan (IDR)
   leaveQuota         Int       @default(12) // jatah cuti tahunan (hari)
+  leaveAdjustment    Int       @default(0) // penyesuaian manual sisa cuti oleh HR
   role               String    @default("EMPLOYEE") // HR_ADMIN | HR_STAFF | EMPLOYEE
   isActive           Boolean   @default(true)
   photoDataUrl       String? // foto profil (data URL base64, diperkecil)
@@ -275,6 +276,7 @@ enum BookingStatus {
 enum LeaveType {
   ANNUAL
   SICK
+  SICK_CERTIFIED
   UNPAID
   OTHER
 }

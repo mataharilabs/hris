@@ -93,7 +93,7 @@ export async function GET(
       npwp: maskTail(e.npwp, 3),
       joinDate: e.joinDate,
       leaveQuota: e.leaveQuota,
-      leaveRemaining: Math.max(0, e.leaveQuota - used),
+      leaveRemaining: Math.max(0, e.leaveQuota - used + e.leaveAdjustment),
     };
   });
 

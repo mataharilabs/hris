@@ -11,7 +11,7 @@ import { formatDate } from "@/lib/utils";
 const schema = z.object({
   recipientId: z.string().min(1),
   role: z.enum(["substitute", "manager"]).default("substitute"),
-  type: z.enum(["ANNUAL", "SICK", "UNPAID", "OTHER"]),
+  type: z.enum(["ANNUAL", "SICK", "SICK_CERTIFIED", "UNPAID", "OTHER"]),
   startDate: z.string().min(1),
   endDate: z.string().min(1),
   reason: z.string().min(1),

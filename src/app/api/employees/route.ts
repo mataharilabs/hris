@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
         birthDate: e.birthDate,
         joinDate: e.joinDate,
         leaveQuota: e.leaveQuota,
-        leaveRemaining: Math.max(0, e.leaveQuota - used),
+        leaveRemaining: Math.max(0, e.leaveQuota - used + e.leaveAdjustment),
         addressKtp: e.addressKtp,
         maritalStatus: e.maritalStatus,
         nik: e.nik,

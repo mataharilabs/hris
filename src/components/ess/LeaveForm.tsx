@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toaster";
-import { LEAVE_TYPE_LABELS } from "@/lib/constants";
+import { LEAVE_TYPE_OPTIONS } from "@/lib/constants";
 
 type Person = {
   id: string;
@@ -197,7 +197,7 @@ export function LeaveForm() {
                 value={form.type}
                 onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
               >
-                {Object.entries(LEAVE_TYPE_LABELS).map(([v, l]) => (
+                {Object.entries(LEAVE_TYPE_OPTIONS).map(([v, l]) => (
                   <option key={v} value={v}>
                     {l}
                   </option>

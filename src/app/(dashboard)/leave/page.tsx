@@ -35,8 +35,13 @@ export default async function LeavePage() {
       orderBy: { createdAt: "desc" },
     }),
     prisma.employee
-      .findUnique({ where: { id: user.id }, select: { leaveQuota: true } })
-      .then((e) => annualLeaveBalance(user.id, e?.leaveQuota ?? 0)),
+      .findUnique({
+        where: { id: user.id },
+        select: { leaveQuota: true, leaveAdjustment: true },
+      })
+      .then((e) =>
+        annualLeaveBalance(user.id, e?.leaveQuota ?? 0, e?.leaveAdjustment ?? 0)
+      ),
     hr
       ? prisma.leaveRequest.findMany({
           where: {

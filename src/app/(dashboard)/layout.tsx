@@ -3,6 +3,7 @@ import { requireUser, AuthError } from "@/lib/session";
 import type { SessionUser } from "@/lib/session";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
+import { KudosWelcome } from "@/components/kudos/KudosWelcome";
 import type { NavRole } from "@/lib/constants";
 
 export default async function DashboardLayout({
@@ -34,6 +35,7 @@ export default async function DashboardLayout({
         <main className="flex-1 overflow-y-auto bg-gradient-to-b from-white via-brand-50/30 to-white p-6">
           <div className="animate-fade-up">{children}</div>
         </main>
+        <KudosWelcome />
       </div>
     </div>
   );

@@ -10,7 +10,7 @@ import { LEAVE_TYPE_LABELS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 
 const schema = z.object({
-  type: z.enum(["ANNUAL", "SICK", "UNPAID", "OTHER"]),
+  type: z.enum(["ANNUAL", "SICK", "SICK_CERTIFIED", "UNPAID", "OTHER"]),
   startDate: z.string().min(1),
   endDate: z.string().min(1),
   reason: z.string().min(1, "Alasan cuti wajib diisi"),
@@ -107,9 +107,13 @@ export async function POST(req: NextRequest) {
     if (data.type === "ANNUAL") {
       const emp = await prisma.employee.findUnique({
         where: { id: user.id },
-        select: { leaveQuota: true },
+        select: { leaveQuota: true, leaveAdjustment: true },
       });
-      const balance = await annualLeaveBalance(user.id, emp?.leaveQuota ?? 0);
+      const balance = await annualLeaveBalance(
+        user.id,
+        emp?.leaveQuota ?? 0,
+        emp?.leaveAdjustment ?? 0
+      );
       if (days > balance.remaining) {
         return ok(
           {
