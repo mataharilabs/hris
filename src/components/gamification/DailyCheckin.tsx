@@ -5,6 +5,7 @@ import { CalendarCheck, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { refreshGami } from "./GamificationBar";
+import { fireConfetti } from "@/lib/confetti";
 
 export function DailyCheckin() {
   const [busy, setBusy] = useState(false);
@@ -19,6 +20,7 @@ export function DailyCheckin() {
         toast("Check-in harian berhasil (+5 poin) ✅", "success");
         setDone(true);
         refreshGami();
+        fireConfetti();
       } else {
         toast(d.error ?? "Gagal check-in", "info");
         setDone(true);

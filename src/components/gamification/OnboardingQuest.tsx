@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { refreshGami } from "./GamificationBar";
+import { fireConfetti } from "@/lib/confetti";
 
 type Step = { key: string; label: string; done: boolean };
 type Onboarding = {
@@ -45,6 +46,7 @@ export function OnboardingQuest() {
       if (!res.ok || d.error) throw new Error(d.error ?? "Gagal klaim");
       toast("Selamat datang! Reward +25 poin diklaim 🎉", "success");
       refreshGami();
+      fireConfetti();
       load();
       router.refresh();
     } catch (e) {

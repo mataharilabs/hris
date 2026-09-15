@@ -8,6 +8,7 @@ import { Select, Textarea, Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toaster";
 import { initials, timeAgo } from "@/lib/utils";
 import { refreshGami } from "@/components/gamification/GamificationBar";
+import { fireConfetti } from "@/lib/confetti";
 
 const MSG_MAX = 50;
 
@@ -89,6 +90,7 @@ export function KudosWall({ meName }: { meName: string }) {
       setRecipientId("");
       setComposing(false);
       refreshGami();
+      fireConfetti();
       load();
     } catch (e) {
       toast((e as Error).message, "error");
