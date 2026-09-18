@@ -20,19 +20,21 @@ export async function ensureMeetingRooms(companyId: string) {
 }
 
 /**
- * Automatic Release: lepaskan booking BOOKED yang belum check-in dan sudah
- * lewat toleransi (mulai + 15 menit). Dipanggil sebelum baca/booking.
+ * Automatic Check-in: booking BOOKED yang belum check-in manual dan sudah lewat
+ * toleransi (mulai + 15 menit) TIDAK dilepas, melainkan ditandai AUTO_CHECKED_IN
+ * agar jadwalnya tetap tercatat/tertrack. Dipanggil sebelum baca/booking, dan
+ * juga oleh cron per-menit. `companyId` opsional → tanpa filter = semua company.
  */
-export async function autoReleaseExpired(companyId: string) {
+export async function autoCheckinExpired(companyId?: string) {
   const threshold = new Date(Date.now() - GRACE_MS);
   await prisma.meetingBooking.updateMany({
     where: {
       status: "BOOKED",
       checkedInAt: null,
       startAt: { lt: threshold },
-      room: { companyId },
+      ...(companyId ? { room: { companyId } } : {}),
     },
-    data: { status: "RELEASED" },
+    data: { status: "AUTO_CHECKED_IN", checkedInAt: new Date() },
   });
 }
 
@@ -46,7 +48,7 @@ export async function hasOverlap(
   const clash = await prisma.meetingBooking.findFirst({
     where: {
       roomId,
-      status: { in: ["BOOKED", "CHECKED_IN"] },
+      status: { in: ["BOOKED", "CHECKED_IN", "AUTO_CHECKED_IN"] },
       startAt: { lt: endAt },
       endAt: { gt: startAt },
       ...(excludeId ? { id: { not: excludeId } } : {}),

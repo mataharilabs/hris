@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/meeting-reminder",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/meeting-tick",
+      "schedule": "* * * * *"
     }
   ]
 }

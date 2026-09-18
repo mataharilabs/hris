@@ -26,7 +26,7 @@ type Booking = {
   department: string | null;
   startAt: string;
   endAt: string;
-  status: "BOOKED" | "CHECKED_IN" | "RELEASED" | "CANCELLED";
+  status: "BOOKED" | "CHECKED_IN" | "AUTO_CHECKED_IN" | "RELEASED" | "CANCELLED";
   checkedInAt: string | null;
   seriesId: string | null;
   employeeId: string;
@@ -305,6 +305,10 @@ export function MeetingCalendar() {
                             {b.status === "CHECKED_IN" ? (
                               <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">
                                 Check-in
+                              </Badge>
+                            ) : b.status === "AUTO_CHECKED_IN" ? (
+                              <Badge className="border-sky-200 bg-sky-50 text-sky-700">
+                                Auto check-in
                               </Badge>
                             ) : (
                               <Badge className="border-amber-200 bg-amber-50 text-amber-700">

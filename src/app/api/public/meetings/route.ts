@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ensureMeetingRooms, autoReleaseExpired } from "@/lib/meeting";
+import { ensureMeetingRooms, autoCheckinExpired } from "@/lib/meeting";
 
 const TZ = "+07:00";
 
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   if (!company) return json({ date: null, rooms: [], bookings: [] });
 
   await ensureMeetingRooms(company.id);
-  await autoReleaseExpired(company.id);
+  await autoCheckinExpired(company.id);
 
   const dateStr =
     req.nextUrl.searchParams.get("date") ||

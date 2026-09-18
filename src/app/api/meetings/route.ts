@@ -6,19 +6,38 @@ import { handleApiError, ok } from "@/lib/api";
 import { randomUUID } from "node:crypto";
 import {
   ensureMeetingRooms,
-  autoReleaseExpired,
+  autoCheckinExpired,
   hasOverlap,
   generateOccurrenceDates,
 } from "@/lib/meeting";
+import { notify } from "@/lib/notify-client";
 
 const TZ = "+07:00"; // WIB
+
+function wibDateTime(d: Date): string {
+  return new Intl.DateTimeFormat("id-ID", {
+    timeZone: "Asia/Jakarta",
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
+}
+function wibHm(d: Date): string {
+  return new Intl.DateTimeFormat("id-ID", {
+    timeZone: "Asia/Jakarta",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
+}
 
 // GET ?date=YYYY-MM-DD — jadwal ruang untuk satu hari (WIB).
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
     await ensureMeetingRooms(user.companyId);
-    await autoReleaseExpired(user.companyId);
+    await autoCheckinExpired(user.companyId);
 
     const dateStr =
       req.nextUrl.searchParams.get("date") ||
@@ -37,7 +56,7 @@ export async function GET(req: NextRequest) {
       prisma.meetingBooking.findMany({
         where: {
           room: { companyId: user.companyId },
-          status: { in: ["BOOKED", "CHECKED_IN"] },
+          status: { in: ["BOOKED", "CHECKED_IN", "AUTO_CHECKED_IN"] },
           startAt: { gte: dayStart, lt: dayEnd },
         },
         orderBy: { startAt: "asc" },
@@ -94,7 +113,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
     await ensureMeetingRooms(user.companyId);
-    await autoReleaseExpired(user.companyId);
+    await autoCheckinExpired(user.companyId);
     const data = createSchema.parse(await req.json());
 
     // Validasi jam (sama untuk tiap occurrence).
@@ -159,7 +178,31 @@ export async function POST(req: NextRequest) {
       })),
     });
 
-    // Notifikasi grup per-booking dinonaktifkan (cukup reminder harian 09:00).
+    // Notifikasi ke WhatsApp pembuat bahwa booking berhasil dibuat (best-effort).
+    const me = await prisma.employee.findUnique({
+      where: { id: user.id },
+      select: { phone: true, name: true },
+    });
+    if (me?.phone) {
+      const first = rows[0];
+      const detail =
+        rows.length === 1
+          ? `${wibDateTime(first.startAt)}–${wibHm(first.endAt)} WIB`
+          : `${rows.length} pertemuan (mulai ${wibDateTime(first.startAt)} WIB)`;
+      await notify({
+        to: { phone: me.phone },
+        subject: "Booking Ruang Meeting Dibuat",
+        message:
+          `Halo ${me.name}, booking ruang meeting berhasil dibuat ✅\n\n` +
+          `• Ruang: ${room.name}\n` +
+          `• Kegiatan: ${data.title}\n` +
+          `• Jadwal: ${detail}\n` +
+          (skipped.length > 0
+            ? `• ${skipped.length} tanggal dilewati karena bentrok\n`
+            : "") +
+          `\nPengingat akan dikirim ~5 menit sebelum mulai. Jangan lupa Check-in di HRIS ya 🙌`,
+      });
+    }
 
     return ok({ created: rows.length, skipped }, 201);
   } catch (e) {
