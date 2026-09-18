@@ -4,12 +4,20 @@ import { prisma } from "@/lib/prisma";
 import { requireHr, requireRole } from "@/lib/session";
 import { handleApiError, ok } from "@/lib/api";
 import { notify } from "@/lib/notify-client";
+import { dayCount } from "@/lib/leave";
 import { LEAVE_TYPE_LABELS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 
 const schema = z.object({
   action: z.enum(["APPROVE", "REJECT"]),
   note: z.string().optional(),
+});
+
+const editSchema = z.object({
+  type: z.enum(["ANNUAL", "SICK", "SICK_CERTIFIED", "UNPAID", "OTHER"]),
+  startDate: z.string().min(1),
+  endDate: z.string().min(1),
+  reason: z.string().optional(),
 });
 
 // Approve/Reject pengajuan cuti (HR only).
@@ -55,6 +63,47 @@ export async function PATCH(
         `\n\n— HRIS AsiaCommerce`,
     });
 
+    return ok(updated);
+  } catch (e) {
+    return handleApiError(e);
+  }
+}
+
+// Edit data cuti yang sudah masuk (HR Admin): jenis, tanggal, alasan.
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await requireRole(["HR_ADMIN"]);
+    const { id } = await params;
+    const data = editSchema.parse(await req.json());
+
+    const leave = await prisma.leaveRequest.findFirst({
+      where: { id, employee: { companyId: user.companyId } },
+      select: { id: true },
+    });
+    if (!leave) return ok({ error: "Pengajuan tidak ditemukan" }, 404);
+
+    const start = new Date(data.startDate);
+    const end = new Date(data.endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return ok({ error: "Tanggal tidak valid" }, 400);
+    }
+    if (end < start) {
+      return ok({ error: "Tanggal selesai sebelum tanggal mulai" }, 400);
+    }
+
+    const updated = await prisma.leaveRequest.update({
+      where: { id },
+      data: {
+        type: data.type,
+        startDate: start,
+        endDate: end,
+        days: dayCount(start, end),
+        reason: data.reason || null,
+      },
+    });
     return ok(updated);
   } catch (e) {
     return handleApiError(e);

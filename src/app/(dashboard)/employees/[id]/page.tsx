@@ -8,6 +8,7 @@ import { listEmployees } from "@/lib/sso-client";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { SalaryForm } from "@/components/employees/SalaryForm";
 import { EmployeeDetails } from "@/components/employees/EmployeeDetails";
+import { EmployeeLeaveManager } from "@/components/employees/EmployeeLeaveManager";
 import {
   EMPLOYMENT_STATUS_LABELS,
   GENDER_LABELS,
@@ -41,6 +42,23 @@ export default async function EmployeeDetailPage({
 
   const balance = await annualLeaveBalance(e.id, e.leaveQuota, e.leaveAdjustment);
   const ssoUrl = process.env.SSO_URL ?? "https://sso.asiacommerce.net";
+  const isAdmin = user.role === "HR_ADMIN";
+
+  // Riwayat cuti karyawan yang sudah disetujui (untuk section kelola cuti).
+  const leaveRows = await prisma.leaveRequest.findMany({
+    where: { employeeId: e.id, status: "APPROVED" },
+    orderBy: { startDate: "desc" },
+    select: {
+      id: true,
+      type: true,
+      startDate: true,
+      endDate: true,
+      days: true,
+      reason: true,
+      status: true,
+      createdAt: true,
+    },
+  });
 
   // Profil lengkap dari SSO (untuk panel "Details").
   const ssoList = e.ssoUserId
@@ -174,6 +192,24 @@ export default async function EmployeeDetailPage({
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      <div className="mt-4">
+        <EmployeeLeaveManager
+          employeeId={e.id}
+          employeeName={e.name}
+          canManage={isAdmin}
+          leaves={leaveRows.map((l) => ({
+            id: l.id,
+            type: l.type,
+            startDate: l.startDate.toISOString(),
+            endDate: l.endDate.toISOString(),
+            days: l.days,
+            reason: l.reason,
+            status: l.status,
+            createdAt: l.createdAt.toISOString(),
+          }))}
+        />
       </div>
 
       <div className="mt-4">
