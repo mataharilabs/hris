@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { normalizeEmail } from "@/lib/employee-sync";
 
 export type Role = "HR_ADMIN" | "HR_STAFF" | "EMPLOYEE";
 
@@ -89,22 +90,34 @@ export async function ensureLocalEmployee(claims: {
     };
   }
 
-  const existing = await prisma.employee.findUnique({
-    where: { email: claims.email },
-    include: { company: { select: { name: true } } },
-  });
+  // Cocokkan berdasarkan ssoUserId dulu, lalu email (tanpa peduli huruf besar/
+  // kecil). Email disimpan lowercase agar tidak terbentuk baris ganda.
+  const email = normalizeEmail(claims.email);
+  const existing =
+    (claims.ssoId
+      ? await prisma.employee.findFirst({
+          where: { ssoUserId: claims.ssoId },
+          include: { company: { select: { name: true } } },
+        })
+      : null) ??
+    (await prisma.employee.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
+      include: { company: { select: { name: true } } },
+    }));
 
   if (existing) {
-    if (existing.role !== role) {
-      await prisma.employee.update({
-        where: { id: existing.id },
-        data: { role },
-      });
+    const patch: Record<string, unknown> = {};
+    if (existing.role !== role) patch.role = role;
+    if (claims.ssoId && existing.ssoUserId !== claims.ssoId)
+      patch.ssoUserId = claims.ssoId;
+    if (existing.email !== email) patch.email = email;
+    if (Object.keys(patch).length > 0) {
+      await prisma.employee.update({ where: { id: existing.id }, data: patch });
     }
     return {
       id: existing.id,
       name: existing.name,
-      email: existing.email,
+      email,
       role,
       companyId: existing.companyId,
       companyName: existing.company.name,
@@ -114,8 +127,9 @@ export async function ensureLocalEmployee(claims: {
   const company = await defaultCompany();
   const created = await prisma.employee.create({
     data: {
-      email: claims.email,
-      name: claims.name ?? claims.email,
+      email,
+      ssoUserId: claims.ssoId ?? null,
+      name: claims.name ?? email,
       role,
       companyId: company.id,
     },
