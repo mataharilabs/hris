@@ -84,6 +84,7 @@ export function MeetingCalendar() {
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [preselectedRoomId, setPreselectedRoomId] = useState<string | null>(null);
   const [form, setForm] = useState({
     roomId: "",
     date: date,
@@ -125,13 +126,14 @@ export function MeetingCalendar() {
     load(date);
   }, [date, load]);
 
-  function openBooking() {
+  function openBooking(roomId?: string) {
     setErr(null);
     const wd = new Date(`${date}T12:00:00Z`).getUTCDay();
+    setPreselectedRoomId(roomId ?? null);
     setForm((f) => ({
       ...f,
       date,
-      roomId: data?.rooms[0]?.id ?? "",
+      roomId: roomId ?? data?.rooms[0]?.id ?? "",
       title: "",
       recur: false,
       weekdays: [wd],
@@ -246,10 +248,6 @@ export function MeetingCalendar() {
             {longDate(date)}
           </span>
         </div>
-        <Button onClick={openBooking}>
-          <Plus className="h-4 w-4" />
-          Book Room Meeting
-        </Button>
       </div>
 
       {loading ? (
@@ -269,6 +267,14 @@ export function MeetingCalendar() {
                     {items.length} jadwal
                   </span>
                 </div>
+                <Button
+                  size="sm"
+                  className="mb-3 w-full"
+                  onClick={() => openBooking(room.id)}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Book This Room
+                </Button>
                 {items.length === 0 ? (
                   <div className="py-8 text-center text-sm text-slate-400">
                     Belum ada jadwal. Ruang tersedia.
@@ -367,20 +373,27 @@ export function MeetingCalendar() {
 
       <Dialog open={open} onClose={() => setOpen(false)} title="Book Room Meeting">
         <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label>Ruang Rapat *</Label>
-            <Select
-              value={form.roomId}
-              onChange={(e) => setForm((f) => ({ ...f, roomId: e.target.value }))}
-            >
-              <option value="">- Pilih ruang -</option>
-              {rooms.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </Select>
-          </div>
+          {preselectedRoomId ? (
+            <div className="flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-medium text-brand-700">
+              <DoorOpen className="h-4 w-4" />
+              {rooms.find((r) => r.id === preselectedRoomId)?.name}
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label>Ruang Rapat *</Label>
+              <Select
+                value={form.roomId}
+                onChange={(e) => setForm((f) => ({ ...f, roomId: e.target.value }))}
+              >
+                <option value="">- Pilih ruang -</option>
+                {rooms.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label>Tanggal *</Label>
             <Input
