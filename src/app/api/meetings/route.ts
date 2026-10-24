@@ -9,6 +9,7 @@ import {
   autoCheckinExpired,
   hasOverlap,
   generateOccurrenceDates,
+  ROOM_SEED,
 } from "@/lib/meeting";
 import { notify } from "@/lib/notify-client";
 
@@ -50,7 +51,6 @@ export async function GET(req: NextRequest) {
     const [rooms, bookings] = await Promise.all([
       prisma.meetingRoom.findMany({
         where: { companyId: user.companyId, isActive: true },
-        orderBy: { key: "asc" },
         select: { id: true, key: true, name: true },
       }),
       prisma.meetingBooking.findMany({
@@ -66,6 +66,11 @@ export async function GET(req: NextRequest) {
         },
       }),
     ]);
+
+    const roomOrder = ROOM_SEED.map((r) => r.key);
+    rooms.sort(
+      (a, b) => roomOrder.indexOf(a.key) - roomOrder.indexOf(b.key)
+    );
 
     return ok({
       date: dateStr,
