@@ -8,6 +8,10 @@ export const KUDOS_POINTS = 25;
 export const CHECKIN_POINTS = 5;
 export const ONBOARDING_POINTS = 25;
 export const KUDOS_MSG_MAX = 50;
+export const MEETING_BOOKED_POINTS = 5;
+export const MEETING_CHECKIN_POINTS = 10;
+export const LEAVE_SUBMITTED_POINTS = 5;
+export const PROFILE_UPDATED_POINTS = 10;
 
 function wibYear(now = new Date()): number {
   return Number(

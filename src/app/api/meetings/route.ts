@@ -11,6 +11,7 @@ import {
   generateOccurrenceDates,
   ROOM_SEED,
 } from "@/lib/meeting";
+import { addPoint, MEETING_BOOKED_POINTS } from "@/lib/gamification";
 import { notify } from "@/lib/notify-client";
 
 const TZ = "+07:00"; // WIB
@@ -171,16 +172,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await prisma.meetingBooking.createMany({
-      data: rows.map((r) => ({
-        roomId: room.id,
-        employeeId: user.id,
-        title: data.title,
-        department,
-        startAt: r.startAt,
-        endAt: r.endAt,
-        seriesId,
-      })),
+    await prisma.$transaction(async (tx) => {
+      await tx.meetingBooking.createMany({
+        data: rows.map((r) => ({
+          roomId: room.id,
+          employeeId: user.id,
+          title: data.title,
+          department,
+          startAt: r.startAt,
+          endAt: r.endAt,
+          seriesId,
+        })),
+      });
+      await addPoint(
+        tx,
+        user.id,
+        "MEETING_BOOKED",
+        MEETING_BOOKED_POINTS,
+        `Booking ruang ${room.name}: ${data.title}`
+      );
     });
 
     // Notifikasi ke WhatsApp pembuat bahwa booking berhasil dibuat (best-effort).

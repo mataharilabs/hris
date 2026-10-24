@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { handleApiError, ok } from "@/lib/api";
 import { canCheckIn } from "@/lib/meeting";
+import { addPoint, MEETING_CHECKIN_POINTS } from "@/lib/gamification";
 
 // Check-in booking sendiri agar meeting aktif (dalam window ±15 menit dari mulai).
 export async function POST(
@@ -29,11 +30,21 @@ export async function POST(
       );
     }
 
-    const updated = await prisma.meetingBooking.update({
-      where: { id },
-      data: { status: "CHECKED_IN", checkedInAt: new Date() },
+    const updated = await prisma.$transaction(async (tx) => {
+      const booking = await tx.meetingBooking.update({
+        where: { id },
+        data: { status: "CHECKED_IN", checkedInAt: new Date() },
+      });
+      await addPoint(
+        tx,
+        user.id,
+        "MEETING_CHECKIN",
+        MEETING_CHECKIN_POINTS,
+        `Check-in tepat waktu: ${b.title || "meeting"}`
+      );
+      return booking;
     });
-    return ok(updated);
+    return ok({ ...updated, points: MEETING_CHECKIN_POINTS });
   } catch (e) {
     return handleApiError(e);
   }

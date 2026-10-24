@@ -8,6 +8,7 @@ import { notify } from "@/lib/notify-client";
 import { listHrStaff } from "@/lib/sso-client";
 import { LEAVE_TYPE_LABELS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
+import { addPoint, LEAVE_SUBMITTED_POINTS } from "@/lib/gamification";
 
 const schema = z.object({
   type: z.enum(["ANNUAL", "SICK", "SICK_CERTIFIED", "UNPAID", "OTHER"]),
@@ -157,7 +158,7 @@ export async function POST(req: NextRequest) {
         where: { id: { in: [subOtp.id, mgrOtp.id] } },
         data: { consumedAt: new Date() },
       });
-      return tx.leaveRequest.create({
+      const leave = await tx.leaveRequest.create({
         data: {
           employeeId: user.id,
           type: data.type,
@@ -170,6 +171,14 @@ export async function POST(req: NextRequest) {
           managerId: data.managerId,
         },
       });
+      await addPoint(
+        tx,
+        user.id,
+        "LEAVE_SUBMITTED",
+        LEAVE_SUBMITTED_POINTS,
+        `Pengajuan cuti ${LEAVE_TYPE_LABELS[data.type]} (${days} hari)`
+      );
+      return leave;
     });
 
     // Notifikasi ke HR (best-effort, tak menggagalkan pengajuan).
