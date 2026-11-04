@@ -17,6 +17,8 @@ const editSchema = z.object({
   type: z.enum(["ANNUAL", "SICK", "SICK_CERTIFIED", "UNPAID", "OTHER"]),
   startDate: z.string().min(1),
   endDate: z.string().min(1),
+  isHalfDay: z.boolean().optional().default(false),
+  halfDaySession: z.enum(["MORNING", "AFTERNOON"]).optional(),
   reason: z.string().optional(),
 });
 
@@ -94,13 +96,16 @@ export async function PUT(
       return ok({ error: "Tanggal selesai sebelum tanggal mulai" }, 400);
     }
 
+    const days = data.isHalfDay ? 0.5 : dayCount(start, end);
     const updated = await prisma.leaveRequest.update({
       where: { id },
       data: {
         type: data.type,
         startDate: start,
         endDate: end,
-        days: dayCount(start, end),
+        days,
+        isHalfDay: data.isHalfDay ?? false,
+        halfDaySession: data.isHalfDay ? (data.halfDaySession ?? null) : null,
         reason: data.reason || null,
       },
     });

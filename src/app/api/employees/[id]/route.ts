@@ -17,7 +17,7 @@ const schema = z.object({
     .optional(),
   // Sisa cuti yang diinginkan HR (opsional) → disimpan sebagai penyesuaian.
   remaining: z
-    .preprocess((v) => (v === "" || v == null ? undefined : Number(v)), z.number().int().min(0))
+    .preprocess((v) => (v === "" || v == null ? undefined : Number(v)), z.number().min(0))
     .optional(),
 });
 

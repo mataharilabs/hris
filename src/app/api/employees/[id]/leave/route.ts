@@ -9,6 +9,8 @@ const schema = z.object({
   type: z.enum(["ANNUAL", "SICK", "SICK_CERTIFIED", "UNPAID", "OTHER"]),
   startDate: z.string().min(1),
   endDate: z.string().min(1),
+  isHalfDay: z.boolean().optional().default(false),
+  halfDaySession: z.enum(["MORNING", "AFTERNOON"]).optional(),
   reason: z.string().optional(),
 });
 
@@ -37,6 +39,11 @@ export async function POST(
     if (end < start) {
       return ok({ error: "Tanggal selesai sebelum tanggal mulai" }, 400);
     }
+    if (data.isHalfDay && data.startDate !== data.endDate) {
+      return ok({ error: "Cuti setengah hari hanya untuk satu tanggal" }, 400);
+    }
+
+    const days = data.isHalfDay ? 0.5 : dayCount(start, end);
 
     const created = await prisma.leaveRequest.create({
       data: {
@@ -44,7 +51,9 @@ export async function POST(
         type: data.type,
         startDate: start,
         endDate: end,
-        days: dayCount(start, end),
+        days,
+        isHalfDay: data.isHalfDay ?? false,
+        halfDaySession: data.isHalfDay ? (data.halfDaySession ?? null) : null,
         reason: data.reason || null,
         status: "APPROVED",
         reviewedById: user.id,

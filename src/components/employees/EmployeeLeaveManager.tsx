@@ -18,7 +18,7 @@ import {
 import { StatusBadge } from "@/components/ess/StatusBadge";
 import { toast } from "@/components/ui/toaster";
 import { LEAVE_TYPE_LABELS, LEAVE_TYPE_OPTIONS } from "@/lib/constants";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatLeaveDays } from "@/lib/utils";
 
 export type LeaveRow = {
   id: string;
@@ -26,12 +26,21 @@ export type LeaveRow = {
   startDate: string;
   endDate: string;
   days: number;
+  isHalfDay: boolean;
+  halfDaySession: string | null;
   reason: string | null;
   status: string;
   createdAt: string;
 };
 
-const emptyForm = { type: "ANNUAL", startDate: "", endDate: "", reason: "" };
+const emptyForm = {
+  type: "ANNUAL",
+  startDate: "",
+  endDate: "",
+  isHalfDay: false,
+  halfDaySession: "MORNING" as "MORNING" | "AFTERNOON",
+  reason: "",
+};
 
 export function EmployeeLeaveManager({
   employeeId,
@@ -63,13 +72,15 @@ export function EmployeeLeaveManager({
       type: l.type,
       startDate: l.startDate.slice(0, 10),
       endDate: l.endDate.slice(0, 10),
+      isHalfDay: l.isHalfDay,
+      halfDaySession: (l.halfDaySession as "MORNING" | "AFTERNOON") ?? "MORNING",
       reason: l.reason ?? "",
     });
     setOpen(true);
   }
 
   async function save() {
-    if (!form.startDate || !form.endDate) {
+    if (!form.startDate || (!form.isHalfDay && !form.endDate)) {
       toast("Isi tanggal mulai & selesai", "error");
       return;
     }
@@ -152,7 +163,9 @@ export function EmployeeLeaveManager({
                   <TableCell className="text-sm">
                     {formatDate(l.startDate)} – {formatDate(l.endDate)}
                   </TableCell>
-                  <TableCell>{l.days}</TableCell>
+                  <TableCell>
+                    {formatLeaveDays(l.days, l.isHalfDay, l.halfDaySession)}
+                  </TableCell>
                   <TableCell className="max-w-[180px] truncate text-sm text-slate-500">
                     {l.reason ?? "-"}
                   </TableCell>
@@ -214,28 +227,70 @@ export function EmployeeLeaveManager({
               ))}
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-lg border border-slate-200 p-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={form.isHalfDay}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    isHalfDay: e.target.checked,
+                    endDate: e.target.checked ? p.startDate : p.endDate,
+                  }))
+                }
+              />
+              Cuti Setengah Hari (½ hari)
+            </label>
+          </div>
+          <div className={`grid gap-3 ${form.isHalfDay ? "grid-cols-1" : "grid-cols-2"}`}>
             <div className="space-y-1.5">
-              <Label>Tanggal Mulai *</Label>
+              <Label>{form.isHalfDay ? "Tanggal *" : "Tanggal Mulai *"}</Label>
               <Input
                 type="date"
                 value={form.startDate}
                 onChange={(e) =>
-                  setForm((p) => ({ ...p, startDate: e.target.value }))
+                  setForm((p) => ({
+                    ...p,
+                    startDate: e.target.value,
+                    endDate: p.isHalfDay ? e.target.value : p.endDate,
+                  }))
                 }
               />
             </div>
-            <div className="space-y-1.5">
-              <Label>Tanggal Selesai *</Label>
-              <Input
-                type="date"
-                value={form.endDate}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, endDate: e.target.value }))
-                }
-              />
-            </div>
+            {!form.isHalfDay && (
+              <div className="space-y-1.5">
+                <Label>Tanggal Selesai *</Label>
+                <Input
+                  type="date"
+                  value={form.endDate}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, endDate: e.target.value }))
+                  }
+                />
+              </div>
+            )}
           </div>
+          {form.isHalfDay && (
+            <div className="space-y-1.5">
+              <Label>Sesi *</Label>
+              <div className="flex gap-3">
+                {(["MORNING", "AFTERNOON"] as const).map((s) => (
+                  <label key={s} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      checked={form.halfDaySession === s}
+                      onChange={() =>
+                        setForm((p) => ({ ...p, halfDaySession: s }))
+                      }
+                    />
+                    {s === "MORNING" ? "Pagi (08:00–12:00)" : "Siang (13:00–17:00)"}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label>Alasan (opsional)</Label>
             <Textarea

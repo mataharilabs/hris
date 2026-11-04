@@ -72,6 +72,8 @@ export function SalaryForm({
         <Label>Sisa Cuti Tahunan (hari)</Label>
         <Input
           type="number"
+          step="0.5"
+          min="0"
           value={remaining}
           onChange={(e) => setRemaining(e.target.value)}
         />
