@@ -97,6 +97,8 @@ export function LeaveForm() {
         type: form.type,
         startDate: form.startDate,
         endDate: form.endDate,
+        isHalfDay: form.isHalfDay,
+        halfDaySession: form.isHalfDay ? form.halfDaySession : undefined,
         reason: form.reason,
         task: form.task,
       }),

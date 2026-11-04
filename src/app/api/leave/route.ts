@@ -7,7 +7,7 @@ import { annualLeaveBalance, dayCount } from "@/lib/leave";
 import { notify } from "@/lib/notify-client";
 import { listHrStaff } from "@/lib/sso-client";
 import { LEAVE_TYPE_LABELS } from "@/lib/constants";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatLeaveDays } from "@/lib/utils";
 import { addPoint, LEAVE_SUBMITTED_POINTS } from "@/lib/gamification";
 
 const schema = z.object({
@@ -34,6 +34,8 @@ async function notifyHrNewLeave(
     start: Date;
     end: Date;
     days: number;
+    isHalfDay: boolean;
+    halfDaySession?: string | null;
     reason: string;
     task?: string | null;
     substituteName: string | null;
@@ -51,10 +53,15 @@ async function notifyHrNewLeave(
   });
   const phoneByEmail = new Map(locals.map((l) => [l.email, l.phone]));
 
+  const daysLabel = formatLeaveDays(leave.days, leave.isHalfDay, leave.halfDaySession);
+  const tanggalLine = leave.isHalfDay
+    ? `• Tanggal: ${formatDate(leave.start)} (${daysLabel})\n`
+    : `• Tanggal: ${formatDate(leave.start)} – ${formatDate(leave.end)} (${daysLabel})\n`;
+
   const message =
     `Pengajuan cuti baru dari *${leave.requesterName}*.\n` +
     `• Jenis: ${LEAVE_TYPE_LABELS[leave.type]}\n` +
-    `• Tanggal: ${formatDate(leave.start)} – ${formatDate(leave.end)} (${leave.days} hari)\n` +
+    tanggalLine +
     `• Alasan: ${leave.reason}\n` +
     (leave.task ? `• Tugas: ${leave.task}\n` : "") +
     (leave.substituteName ? `• Pengganti: ${leave.substituteName}\n` : "") +
@@ -208,6 +215,8 @@ export async function POST(req: NextRequest) {
       start,
       end,
       days,
+      isHalfDay: data.isHalfDay ?? false,
+      halfDaySession: data.isHalfDay ? (data.halfDaySession ?? null) : null,
       reason: data.reason,
       task: data.task,
       substituteName: substitute?.name ?? null,

@@ -6,7 +6,7 @@ import { handleApiError, ok } from "@/lib/api";
 import { notifyResult } from "@/lib/notify-client";
 import { dayCount } from "@/lib/leave";
 import { LEAVE_TYPE_LABELS } from "@/lib/constants";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatLeaveDays } from "@/lib/utils";
 
 const schema = z.object({
   recipientId: z.string().min(1),
@@ -14,6 +14,8 @@ const schema = z.object({
   type: z.enum(["ANNUAL", "SICK", "SICK_CERTIFIED", "UNPAID", "OTHER"]),
   startDate: z.string().min(1),
   endDate: z.string().min(1),
+  isHalfDay: z.boolean().optional().default(false),
+  halfDaySession: z.enum(["MORNING", "AFTERNOON"]).optional(),
   reason: z.string().min(1),
   task: z.string().optional(),
 });
@@ -80,13 +82,17 @@ export async function POST(req: NextRequest) {
     const start = new Date(body.startDate);
     const end = new Date(body.endDate);
     const validDates = !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime());
-    const days = validDates ? dayCount(start, end) : 0;
+    const days = validDates
+      ? (body.isHalfDay ? 0.5 : dayCount(start, end))
+      : 0;
+    const daysLabel = formatLeaveDays(days, body.isHalfDay ?? false, body.halfDaySession);
+    const tanggalLine = body.isHalfDay
+      ? `• Tanggal: ${formatDate(start)} (${daysLabel})\n`
+      : `• Tanggal: ${formatDate(start)} – ${formatDate(end)} (${daysLabel})\n`;
     const detail =
       `Detail cuti ${user.name ?? "rekan"}:\n` +
       `• Jenis: ${LEAVE_TYPE_LABELS[body.type]}\n` +
-      (validDates
-        ? `• Tanggal: ${formatDate(start)} – ${formatDate(end)} (${days} hari)\n`
-        : "") +
+      (validDates ? tanggalLine : "") +
       `• Alasan: ${body.reason}\n` +
       (body.task ? `• Tugas/hand-over: ${body.task}\n` : "");
 
