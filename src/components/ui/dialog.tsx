@@ -12,6 +12,7 @@ type DialogProps = {
   description?: string;
   children: React.ReactNode;
   className?: string;
+  dismissible?: boolean; // false = hanya bisa ditutup via tombol X / Batal
 };
 
 export function Dialog({
@@ -21,17 +22,18 @@ export function Dialog({
   description,
   children,
   className,
+  dismissible = true,
 }: DialogProps) {
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
 
   React.useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && dismissible) onClose();
     }
     if (open) document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, onClose, dismissible]);
 
   if (!open || !mounted) return null;
 
@@ -40,7 +42,7 @@ export function Dialog({
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={dismissible ? onClose : undefined}
       />
       <div
         className={cn(

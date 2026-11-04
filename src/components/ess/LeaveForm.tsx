@@ -192,6 +192,7 @@ export function LeaveForm() {
         open={open}
         onClose={close}
         title={step === 1 ? "Ajukan Cuti — Langkah 1/2" : "Ajukan Cuti — Langkah 2/2"}
+        dismissible={false}
       >
         {step === 1 ? (
           <div className="space-y-4">
