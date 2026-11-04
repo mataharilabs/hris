@@ -21,7 +21,7 @@ const schema = z.object({
 });
 
 const RESEND_COOLDOWN_MS = 60 * 1000; // 1 menit
-const TTL_MS = 5 * 60 * 1000; // berlaku 5 menit
+const TTL_MS = 10 * 60 * 1000; // berlaku 10 menit
 
 const ROLE_LABEL = {
   substitute: "karyawan pengganti",
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
         `Halo ${rcpt.name},\n\n` +
         `${user.name ?? "Seorang rekan"} mengajukan cuti dan menjadikan Anda ${roleLabel}.\n\n` +
         detail +
-        `\nKode konfirmasi: *${code}* (berlaku 5 menit).\n` +
+        `\nKode konfirmasi: *${code}* (berlaku 10 menit).\n` +
         `Bagikan kode ini ke pemohon bila Anda menyetujui.\n\n— HRIS AsiaCommerce`,
     });
 
