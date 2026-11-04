@@ -14,6 +14,8 @@ const schema = z.object({
   type: z.enum(["ANNUAL", "SICK", "SICK_CERTIFIED", "UNPAID", "OTHER"]),
   startDate: z.string().min(1),
   endDate: z.string().min(1),
+  isHalfDay: z.boolean().optional().default(false),
+  halfDaySession: z.enum(["MORNING", "AFTERNOON"]).optional(),
   reason: z.string().min(1, "Alasan cuti wajib diisi"),
   task: z.string().optional(),
   substituteId: z.string().min(1, "Pilih karyawan pengganti"),
@@ -103,7 +105,13 @@ export async function POST(req: NextRequest) {
     if (end < start) {
       return ok({ error: "Tanggal selesai sebelum tanggal mulai" }, 400);
     }
-    const days = dayCount(start, end);
+    if (data.isHalfDay && data.startDate !== data.endDate) {
+      return ok({ error: "Cuti setengah hari hanya untuk satu tanggal" }, 400);
+    }
+    if (data.isHalfDay && !data.halfDaySession) {
+      return ok({ error: "Pilih sesi (Pagi atau Siang) untuk cuti setengah hari" }, 400);
+    }
+    const days = data.isHalfDay ? 0.5 : dayCount(start, end);
 
     if (data.type === "ANNUAL") {
       const emp = await prisma.employee.findUnique({
@@ -165,6 +173,8 @@ export async function POST(req: NextRequest) {
           startDate: start,
           endDate: end,
           days,
+          isHalfDay: data.isHalfDay ?? false,
+          halfDaySession: data.isHalfDay ? (data.halfDaySession ?? null) : null,
           reason: data.reason,
           task: data.task || null,
           substituteId: data.substituteId,

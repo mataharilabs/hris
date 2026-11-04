@@ -23,6 +23,8 @@ const emptyForm = {
   type: "ANNUAL",
   startDate: "",
   endDate: "",
+  isHalfDay: false,
+  halfDaySession: "MORNING" as "MORNING" | "AFTERNOON",
   reason: "",
   task: "",
   substituteId: "",
@@ -204,28 +206,70 @@ export function LeaveForm() {
                 ))}
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-slate-200 p-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={form.isHalfDay}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      isHalfDay: e.target.checked,
+                      endDate: e.target.checked ? p.startDate : p.endDate,
+                    }))
+                  }
+                />
+                Cuti Setengah Hari (½ hari)
+              </label>
+            </div>
+            <div className={`grid gap-3 ${form.isHalfDay ? "grid-cols-1" : "grid-cols-2"}`}>
               <div className="space-y-1.5">
-                <Label>Tanggal Mulai *</Label>
+                <Label>{form.isHalfDay ? "Tanggal *" : "Tanggal Mulai *"}</Label>
                 <Input
                   type="date"
                   value={form.startDate}
                   onChange={(e) =>
-                    setForm((p) => ({ ...p, startDate: e.target.value }))
+                    setForm((p) => ({
+                      ...p,
+                      startDate: e.target.value,
+                      endDate: p.isHalfDay ? e.target.value : p.endDate,
+                    }))
                   }
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label>Tanggal Selesai *</Label>
-                <Input
-                  type="date"
-                  value={form.endDate}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, endDate: e.target.value }))
-                  }
-                />
-              </div>
+              {!form.isHalfDay && (
+                <div className="space-y-1.5">
+                  <Label>Tanggal Selesai *</Label>
+                  <Input
+                    type="date"
+                    value={form.endDate}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, endDate: e.target.value }))
+                    }
+                  />
+                </div>
+              )}
             </div>
+            {form.isHalfDay && (
+              <div className="space-y-1.5">
+                <Label>Sesi *</Label>
+                <div className="flex gap-3">
+                  {(["MORNING", "AFTERNOON"] as const).map((s) => (
+                    <label key={s} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        checked={form.halfDaySession === s}
+                        onChange={() =>
+                          setForm((p) => ({ ...p, halfDaySession: s }))
+                        }
+                      />
+                      {s === "MORNING" ? "Pagi (08:00–12:00)" : "Siang (13:00–17:00)"}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Karyawan Pengganti *</Label>
               <Select

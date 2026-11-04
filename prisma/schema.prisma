@@ -165,7 +165,9 @@ model LeaveRequest {
   type       LeaveType     @default(ANNUAL)
   startDate  DateTime
   endDate    DateTime
-  days       Int
+  days            Float
+  isHalfDay       Boolean @default(false)
+  halfDaySession  String? // "MORNING" | "AFTERNOON" — hanya relevan jika isHalfDay
   reason     String?
   task       String? // tugas/hand-over selama cuti (opsional)
   status     RequestStatus @default(PENDING)

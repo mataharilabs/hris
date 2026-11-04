@@ -16,7 +16,7 @@ import { ReviewActions } from "@/components/ess/ReviewActions";
 import { DeleteLeaveButton } from "@/components/ess/DeleteLeaveButton";
 import { StatusBadge } from "@/components/ess/StatusBadge";
 import { LEAVE_TYPE_LABELS } from "@/lib/constants";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatLeaveDays } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -142,7 +142,7 @@ export default async function LeavePage() {
                       <TableCell className="text-sm">
                         {formatDate(l.startDate)} – {formatDate(l.endDate)}
                       </TableCell>
-                      <TableCell>{l.days}</TableCell>
+                      <TableCell>{formatLeaveDays(l.days, l.isHalfDay, l.halfDaySession)}</TableCell>
                       <TableCell className="max-w-[180px] truncate text-sm text-slate-500">
                         {l.reason ?? "-"}
                       </TableCell>
@@ -208,7 +208,7 @@ export default async function LeavePage() {
                       <TableCell className="text-sm">
                         {formatDate(l.startDate)} – {formatDate(l.endDate)}
                       </TableCell>
-                      <TableCell>{l.days}</TableCell>
+                      <TableCell>{formatLeaveDays(l.days, l.isHalfDay, l.halfDaySession)}</TableCell>
                       <TableCell className="max-w-[180px] truncate text-sm text-slate-500">
                         {l.reason ?? "-"}
                       </TableCell>

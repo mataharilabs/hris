@@ -83,6 +83,19 @@ export function ageFrom(value: Date | string | null | undefined): number | null 
   return age;
 }
 
+/** Format jumlah hari cuti: "½ hari (Pagi)", "½ hari (Siang)", atau "3 hari". */
+export function formatLeaveDays(
+  days: number,
+  isHalfDay: boolean,
+  halfDaySession?: string | null
+): string {
+  if (isHalfDay) {
+    const sesi = halfDaySession === "AFTERNOON" ? "Siang" : "Pagi";
+    return `½ hari (${sesi})`;
+  }
+  return `${days} hari`;
+}
+
 /** Masa kerja (tahun, desimal 1) dari tanggal masuk. */
 export function tenureYears(value: Date | string | null | undefined): number | null {
   if (!value) return null;
