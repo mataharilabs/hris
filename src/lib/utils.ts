@@ -105,7 +105,7 @@ export function workdayCount(start: Date, end: Date): number {
   const cur = new Date(a);
   while (cur <= b) {
     const d = cur.getDay();
-    if (d !== 0 && d !== 6) count++;
+    if (d !== 0) count++;
     cur.setDate(cur.getDate() + 1);
   }
   return count;
