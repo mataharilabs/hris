@@ -1,21 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Plus,
-  Loader2,
   ChevronLeft,
   ChevronRight,
+  Loader2,
   CheckCircle2,
   X,
-  DoorOpen,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Input, Label, Select, Textarea } from "@/components/ui/input";
-import { Dialog } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toaster";
+import { cn } from "@/lib/utils";
+import { BookingModal } from "./BookingModal";
+
+// ─── types ────────────────────────────────────────────────────────────────────
 
 type Room = { id: string; key: string; name: string };
 type Booking = {
@@ -32,40 +31,28 @@ type Booking = {
   employeeId: string;
   employeeName: string;
 };
-
-const WEEKDAYS = [
-  { v: 1, l: "Sen" },
-  { v: 2, l: "Sel" },
-  { v: 3, l: "Rab" },
-  { v: 4, l: "Kam" },
-  { v: 5, l: "Jum" },
-  { v: 6, l: "Sab" },
-  { v: 0, l: "Min" },
-];
 type Data = { date: string; meId: string; rooms: Room[]; bookings: Booking[] };
 
+// ─── timeline constants ───────────────────────────────────────────────────────
+
+const TIMELINE_START = 8;   // 08:00
+const TIMELINE_END = 18;    // 18:00
+const PX_PER_HOUR = 56;
+const TOTAL_H = (TIMELINE_END - TIMELINE_START) * PX_PER_HOUR; // 560px
 const GRACE_MS = 15 * 60 * 1000;
 
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
 function todayWIB(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(
-    new Date()
-  );
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
 }
+
 function shiftDate(dateStr: string, delta: number): string {
   const d = new Date(`${dateStr}T00:00:00`);
   d.setDate(d.getDate() + delta);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-function hhmm(iso: string): string {
-  return new Intl.DateTimeFormat("id-ID", {
-    timeZone: "Asia/Jakarta",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(iso));
-}
+
 function longDate(dateStr: string): string {
   return new Intl.DateTimeFormat("id-ID", {
     timeZone: "Asia/Jakarta",
@@ -76,136 +63,151 @@ function longDate(dateStr: string): string {
   }).format(new Date(`${dateStr}T00:00:00+07:00`));
 }
 
+function isoToWibHm(iso: string): { h: number; m: number } {
+  const p = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jakarta",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(iso));
+  return {
+    h: Number(p.find((x) => x.type === "hour")?.value ?? 0),
+    m: Number(p.find((x) => x.type === "minute")?.value ?? 0),
+  };
+}
+
+function wibHm(iso: string): string {
+  const { h, m } = isoToWibHm(iso);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function hmToY(h: number, m: number): number {
+  return (h + m / 60 - TIMELINE_START) * PX_PER_HOUR;
+}
+
+function isoToY(iso: string): number {
+  const { h, m } = isoToWibHm(iso);
+  return hmToY(h, m);
+}
+
+function blockHeight(startIso: string, endIso: string): number {
+  return Math.max(22, isoToY(endIso) - isoToY(startIso));
+}
+
+function yToHhMm(y: number): string {
+  const totalMins = Math.round((y / PX_PER_HOUR + TIMELINE_START) * 2) / 2 * 60;
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  const clampH = Math.max(TIMELINE_START, Math.min(TIMELINE_END - 1, h));
+  return `${String(clampH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function getNowY(): number | null {
+  const { h, m } = isoToWibHm(new Date().toISOString());
+  if (h < TIMELINE_START || h >= TIMELINE_END) return null;
+  return hmToY(h, m);
+}
+
+function getRoomStatus(
+  roomId: string,
+  bookings: Booking[],
+  isToday: boolean
+): { label: string; cls: string } {
+  const rb = bookings.filter((b) => b.roomId === roomId);
+  if (!isToday) {
+    return rb.length > 0
+      ? { label: "Ada jadwal", cls: "bg-blue-50 text-blue-700 border-blue-200" }
+      : { label: "Kosong", cls: "bg-slate-50 text-slate-500 border-slate-200" };
+  }
+  const now = Date.now();
+  const active = rb.find(
+    (b) => new Date(b.startAt).getTime() <= now && new Date(b.endAt).getTime() > now
+  );
+  if (active)
+    return { label: "Sedang dipakai", cls: "bg-red-50 text-red-700 border-red-200" };
+  return { label: "Tersedia", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+}
+
+// ─── main component ───────────────────────────────────────────────────────────
+
 export function MeetingCalendar() {
-  const [date, setDate] = useState(todayWIB());
+  const [date, setDate] = useState(todayWIB);
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [nowY, setNowY] = useState<number | null>(null);
+  const [hoverSlot, setHoverSlot] = useState<{ roomId: string; y: number; time: string } | null>(null);
+  const [detailBooking, setDetailBooking] = useState<Booking | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [preselectedRoomId, setPreselectedRoomId] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    roomId: "",
-    date: date,
-    startTime: "09:00",
-    endTime: "10:00",
-    department: "",
-    title: "",
-    recur: false,
-    freq: "WEEKLY" as "WEEKLY" | "WEEKDAY" | "MONTHLY",
-    weekdays: [] as number[],
-    endMode: "date" as "date" | "count",
-    untilDate: "",
-    count: 8,
-  });
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalRoomId, setModalRoomId] = useState<string | undefined>(undefined);
+  const [modalStartTime, setModalStartTime] = useState<string | undefined>(undefined);
+  const [animateIds, setAnimateIds] = useState<Set<string>>(new Set());
+  const prevIdsRef = useRef<Set<string>>(new Set());
 
-  function toggleWeekday(v: number) {
-    setForm((f) => ({
-      ...f,
-      weekdays: f.weekdays.includes(v)
-        ? f.weekdays.filter((x) => x !== v)
-        : [...f.weekdays, v],
-    }));
-  }
+  // Load data
+  const load = useCallback(
+    async (d: string, markNew = false) => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/meetings?date=${d}`);
+        const json: Data = await res.json();
+        if (markNew && json.bookings) {
+          const newIds = new Set(
+            json.bookings.filter((b) => !prevIdsRef.current.has(b.id)).map((b) => b.id)
+          );
+          if (newIds.size > 0) {
+            setAnimateIds(newIds);
+            setTimeout(() => setAnimateIds(new Set()), 1500);
+          }
+        }
+        if (json.bookings) {
+          prevIdsRef.current = new Set(json.bookings.map((b) => b.id));
+        }
+        setData(json);
+      } catch {
+        setData(null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
 
-  const load = useCallback(async (d: string) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/meetings?date=${d}`);
-      const json = await res.json();
-      setData(json);
-    } catch {
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => { load(date); }, [date, load]);
+
+  // Current time line — update every minute
+  useEffect(() => {
+    setNowY(getNowY());
+    const id = setInterval(() => setNowY(getNowY()), 60_000);
+    return () => clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    load(date);
-  }, [date, load]);
-
-  function openBooking(roomId?: string) {
-    setErr(null);
-    const wd = new Date(`${date}T12:00:00Z`).getUTCDay();
-    setPreselectedRoomId(roomId ?? null);
-    setForm((f) => ({
-      ...f,
-      date,
-      roomId: roomId ?? data?.rooms[0]?.id ?? "",
-      title: "",
-      recur: false,
-      weekdays: [wd],
-      endMode: "date",
-      untilDate: "",
-      count: 8,
-    }));
-    setOpen(true);
+  function openBooking(roomId?: string, startTime?: string) {
+    setModalRoomId(roomId);
+    setModalStartTime(startTime);
+    setModalOpen(true);
   }
 
-  async function submit() {
-    if (!form.roomId) return setErr("Pilih ruang");
-    if (!form.title.trim()) return setErr("Isi deskripsi kegiatan");
-    if (form.recur) {
-      if (form.freq === "WEEKLY" && form.weekdays.length === 0)
-        return setErr("Pilih minimal satu hari");
-      if (form.endMode === "date" && !form.untilDate)
-        return setErr("Isi tanggal berakhir");
-    }
-    setErr(null);
-    setSaving(true);
-    try {
-      const body: Record<string, unknown> = {
-        roomId: form.roomId,
-        date: form.date,
-        startTime: form.startTime,
-        endTime: form.endTime,
-        department: form.department,
-        title: form.title,
-      };
-      if (form.recur) {
-        body.recurrence = {
-          freq: form.freq,
-          weekdays: form.freq === "WEEKLY" ? form.weekdays : undefined,
-          endMode: form.endMode,
-          untilDate: form.endMode === "date" ? form.untilDate : undefined,
-          count: form.endMode === "count" ? Number(form.count) : undefined,
-        };
-      }
-      const res = await fetch("/api/meetings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok || d.error) throw new Error(d.error ?? "Gagal booking");
-      const skipped = (d.skipped?.length ?? 0) as number;
-      toast(
-        `${d.created ?? 1} pertemuan dipesan` +
-          (skipped > 0 ? `, ${skipped} tanggal dilewati (bentrok)` : ""),
-        "success"
-      );
-      setOpen(false);
-      if (form.date !== date) setDate(form.date);
-      else load(date);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setSaving(false);
-    }
+  function handleColumnClick(roomId: string, e: React.MouseEvent<HTMLDivElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const time = yToHhMm(y);
+    openBooking(roomId, time);
   }
 
-  async function act(
-    id: string,
-    action: "checkin" | "cancel",
-    scope?: "one" | "series"
-  ) {
+  function handleColumnMouseMove(roomId: string, e: React.MouseEvent<HTMLDivElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const slotY = Math.round(y / (PX_PER_HOUR / 2)) * (PX_PER_HOUR / 2);
+    const clampedY = Math.max(0, Math.min(TOTAL_H - 1, slotY));
+    setHoverSlot({ roomId, y: clampedY, time: yToHhMm(clampedY) });
+  }
+
+  async function act(id: string, action: "checkin" | "cancel", scope?: "one" | "series") {
     if (action === "cancel") {
-      const msg =
-        scope === "series"
-          ? "Batalkan SELURUH seri (pertemuan mendatang)?"
-          : "Batalkan booking ini?";
+      const msg = scope === "series"
+        ? "Batalkan SELURUH seri (pertemuan mendatang)?"
+        : "Batalkan booking ini?";
       if (!confirm(msg)) return;
     }
     setBusyId(id);
@@ -217,7 +219,8 @@ export function MeetingCalendar() {
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok || d.error) throw new Error(d.error ?? "Gagal");
-      toast(action === "checkin" ? "Check-in berhasil" : "Booking dibatalkan", "success");
+      toast(action === "checkin" ? "Check-in berhasil!" : "Booking dibatalkan", "success");
+      setDetailBooking(null);
       load(date);
     } catch (e) {
       toast((e as Error).message, "error");
@@ -226,330 +229,348 @@ export function MeetingCalendar() {
     }
   }
 
+  function handleBookingSuccess(created: number, skipped: string[]) {
+    const msg =
+      `${created} jadwal dipesan. Jangan lupa check-in.` +
+      (skipped.length > 0 ? ` ${skipped.length} dilewati karena bentrok.` : "");
+    toast(msg, "success");
+    if (data?.date !== date) setDate(data?.date ?? date);
+    else load(date, true);
+  }
+
   const rooms = data?.rooms ?? [];
+  const bookings = data?.bookings ?? [];
+  const isToday = date === todayWIB();
+
+  // ─── render ─────────────────────────────────────────────────────────────────
 
   return (
     <div>
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => setDate(shiftDate(date, -1))}>
-            <ChevronLeft className="h-4 w-4" />
+      {/* ── date navigation ── */}
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setDate(shiftDate(date, -1))}
+          aria-label="Hari sebelumnya"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setDate(shiftDate(date, 1))}
+          aria-label="Hari berikutnya"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+        />
+        {!isToday && (
+          <Button variant="outline" size="sm" onClick={() => setDate(todayWIB())}>
+            <Calendar className="h-3.5 w-3.5" />
+            Hari ini
           </Button>
-          <Input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-auto"
-          />
-          <Button variant="outline" size="icon" onClick={() => setDate(shiftDate(date, 1))}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <span className="ml-1 hidden text-sm text-slate-500 sm:inline">
-            {longDate(date)}
-          </span>
-        </div>
+        )}
+        <span className="text-sm text-slate-600 font-medium">{longDate(date)}</span>
       </div>
 
-      {loading ? (
+      {/* ── loading ── */}
+      {loading && (
         <div className="flex justify-center py-16 text-slate-400">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {rooms.map((room) => {
-            const items = (data?.bookings ?? []).filter((b) => b.roomId === room.id);
-            return (
-              <Card key={room.id} className="p-4">
-                <div className="mb-3 flex items-center gap-2">
-                  <DoorOpen className="h-4 w-4 text-brand-600" />
-                  <h3 className="font-semibold text-slate-800">{room.name}</h3>
-                  <span className="ml-auto text-xs text-slate-400">
-                    {items.length} jadwal
-                  </span>
-                </div>
-                <Button
-                  size="sm"
-                  className="mb-3 w-full"
-                  onClick={() => openBooking(room.id)}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Book This Room
-                </Button>
-                {items.length === 0 ? (
-                  <div className="py-8 text-center text-sm text-slate-400">
-                    Belum ada jadwal. Ruang tersedia.
+      )}
+
+      {/* ── timeline ── */}
+      {!loading && (
+        <div className="overflow-x-auto rounded-[18px] border border-slate-200 bg-white shadow-sm">
+          <div className="min-w-[780px]">
+
+            {/* sticky room header row */}
+            <div
+              className="sticky top-0 z-20 grid border-b border-slate-200 bg-white/95 backdrop-blur-sm"
+              style={{ gridTemplateColumns: `56px repeat(${rooms.length}, 1fr)` }}
+            >
+              <div className="border-r border-slate-200" /> {/* empty corner */}
+              {rooms.map((room, i) => {
+                const st = getRoomStatus(room.id, bookings, isToday);
+                const count = bookings.filter((b) => b.roomId === room.id).length;
+                return (
+                  <div
+                    key={room.id}
+                    className={cn(
+                      "flex flex-col gap-1.5 px-3 py-3",
+                      i < rooms.length - 1 && "border-r border-slate-200"
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-slate-800 truncate">{room.name}</span>
+                      <span className="shrink-0 text-xs text-slate-400">{count} jadwal</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={cn(
+                        "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                        st.cls
+                      )}>
+                        {st.label}
+                      </span>
+                      <button
+                        onClick={() => openBooking(room.id)}
+                        className="flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-xs font-medium text-white hover:bg-brand-700 transition-colors"
+                      >
+                        + Pesan
+                      </button>
+                    </div>
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    {items.map((b) => {
-                      const mine = b.employeeId === data?.meId;
-                      const start = new Date(b.startAt).getTime();
-                      const now = Date.now();
-                      const canCheckin =
-                        mine &&
-                        b.status === "BOOKED" &&
-                        now >= start - GRACE_MS &&
-                        now <= start + GRACE_MS;
+                );
+              })}
+            </div>
+
+            {/* timeline body */}
+            <div
+              className="relative grid"
+              style={{ gridTemplateColumns: `56px repeat(${rooms.length}, 1fr)`, height: TOTAL_H }}
+            >
+              {/* time axis */}
+              <div className="relative border-r border-slate-200">
+                {Array.from({ length: TIMELINE_END - TIMELINE_START + 1 }, (_, i) => {
+                  const h = TIMELINE_START + i;
+                  return (
+                    <div
+                      key={h}
+                      className="absolute right-0 w-full text-right pr-2"
+                      style={{ top: i * PX_PER_HOUR - 8 }}
+                    >
+                      <span className="text-[11px] text-slate-400 leading-none">
+                        {String(h).padStart(2, "0")}:00
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* room columns */}
+              {rooms.map((room, i) => (
+                <div
+                  key={room.id}
+                  className={cn(
+                    "relative overflow-hidden cursor-crosshair",
+                    i < rooms.length - 1 && "border-r border-slate-200"
+                  )}
+                  onClick={(e) => handleColumnClick(room.id, e)}
+                  onMouseMove={(e) => handleColumnMouseMove(room.id, e)}
+                  onMouseLeave={() => setHoverSlot(null)}
+                >
+                  {/* hour lines */}
+                  {Array.from({ length: TIMELINE_END - TIMELINE_START + 1 }, (_, j) => (
+                    <div
+                      key={j}
+                      className="absolute inset-x-0 border-t border-slate-100"
+                      style={{ top: j * PX_PER_HOUR }}
+                    />
+                  ))}
+                  {/* half-hour lines */}
+                  {Array.from({ length: TIMELINE_END - TIMELINE_START }, (_, j) => (
+                    <div
+                      key={j}
+                      className="absolute inset-x-0 border-t border-dashed border-slate-50"
+                      style={{ top: (j + 0.5) * PX_PER_HOUR }}
+                    />
+                  ))}
+
+                  {/* current time line */}
+                  {isToday && nowY !== null && nowY >= 0 && nowY <= TOTAL_H && (
+                    <div
+                      className="absolute inset-x-0 z-30 pointer-events-none"
+                      style={{ top: nowY }}
+                    >
+                      <div className="relative border-t-2 border-red-400">
+                        <span className="absolute -left-1 -top-1.5 h-3 w-3 rounded-full bg-red-400" />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* hover preview */}
+                  {hoverSlot?.roomId === room.id && (
+                    <div
+                      className="absolute inset-x-0 z-10 pointer-events-none flex items-center"
+                      style={{ top: hoverSlot.y }}
+                    >
+                      <span className="bg-brand-50 text-brand-700 text-[11px] font-medium px-1.5 py-0.5 rounded-r leading-tight">
+                        +{hoverSlot.time}
+                      </span>
+                      <div className="flex-1 border-t border-dashed border-brand-200" />
+                    </div>
+                  )}
+
+                  {/* booking blocks */}
+                  {bookings
+                    .filter((b) => b.roomId === room.id)
+                    .map((b) => {
+                      const y = isoToY(b.startAt);
+                      const h = blockHeight(b.startAt, b.endAt);
+                      const isCheckedIn = b.status === "CHECKED_IN" || b.status === "AUTO_CHECKED_IN";
                       return (
                         <div
                           key={b.id}
-                          className="rounded-lg border border-slate-200 p-3"
+                          className={cn(
+                            "absolute inset-x-1 z-20 rounded-md overflow-hidden cursor-pointer select-none transition-opacity hover:opacity-90",
+                            isCheckedIn ? "bg-emerald-50 border border-emerald-200" : "bg-amber-50 border border-amber-200",
+                            animateIds.has(b.id) && "animate-fade-up"
+                          )}
+                          style={{ top: y, height: h }}
+                          onClick={(e) => { e.stopPropagation(); setDetailBooking(b); }}
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <div className="text-sm font-medium text-slate-800">
-                                {hhmm(b.startAt)}–{hhmm(b.endAt)} · {b.title}
-                                {b.seriesId && (
-                                  <span title="Meeting berulang"> 🔁</span>
-                                )}
-                              </div>
-                              <div className="text-xs text-slate-400">
-                                {b.department ? `${b.department} · ` : ""}
-                                {b.employeeName}
-                              </div>
-                            </div>
-                            {b.status === "CHECKED_IN" ? (
-                              <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                                Check-in
-                              </Badge>
-                            ) : b.status === "AUTO_CHECKED_IN" ? (
-                              <Badge className="border-sky-200 bg-sky-50 text-sky-700">
-                                Auto check-in
-                              </Badge>
-                            ) : (
-                              <Badge className="border-amber-200 bg-amber-50 text-amber-700">
-                                Dipesan
-                              </Badge>
+                          {/* left accent bar */}
+                          <div className={cn("absolute left-0 top-0 bottom-0 w-[3px]",
+                            isCheckedIn ? "bg-emerald-500" : "bg-amber-500")} />
+                          <div className="pl-2.5 py-1 pr-1 h-full overflow-hidden">
+                            <p className="text-[11px] font-semibold leading-tight text-slate-800 truncate">
+                              {b.title}
+                            </p>
+                            {h >= 36 && (
+                              <p className="text-[10px] leading-tight text-slate-500">
+                                {wibHm(b.startAt)}–{wibHm(b.endAt)}
+                              </p>
+                            )}
+                            {h >= 54 && (
+                              <p className="text-[10px] leading-tight text-slate-400 truncate">
+                                {b.department ? `${b.department} · ` : ""}{b.employeeName}
+                              </p>
                             )}
                           </div>
-                          {mine && (b.status === "BOOKED" || b.status === "CHECKED_IN") && (
-                            <div className="mt-2 flex gap-1">
-                              {canCheckin && (
-                                <Button
-                                  size="sm"
-                                  variant="success"
-                                  onClick={() => act(b.id, "checkin")}
-                                  disabled={busyId === b.id}
-                                >
-                                  {busyId === b.id ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    <CheckCircle2 className="h-3.5 w-3.5" />
-                                  )}
-                                  Check-in
-                                </Button>
-                              )}
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => act(b.id, "cancel", "one")}
-                                disabled={busyId === b.id}
-                              >
-                                <X className="h-3.5 w-3.5" />
-                                Batalkan
-                              </Button>
-                              {b.seriesId && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => act(b.id, "cancel", "series")}
-                                  disabled={busyId === b.id}
-                                >
-                                  Batalkan seri
-                                </Button>
-                              )}
-                            </div>
-                          )}
                         </div>
                       );
                     })}
-                  </div>
-                )}
-              </Card>
-            );
-          })}
+                </div>
+              ))}
+            </div>
+
+            {/* legend */}
+            <div className="flex items-center gap-4 border-t border-slate-100 px-4 py-2.5">
+              <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
+                Sudah check-in
+              </span>
+              <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                <span className="h-2.5 w-2.5 rounded-sm bg-amber-500" />
+                Dipesan
+              </span>
+            </div>
+          </div>
         </div>
       )}
 
-      <Dialog open={open} onClose={() => setOpen(false)} title="Book Room Meeting">
-        <div className="space-y-4">
-          {preselectedRoomId ? (
-            <div className="flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-medium text-brand-700">
-              <DoorOpen className="h-4 w-4" />
-              {rooms.find((r) => r.id === preselectedRoomId)?.name}
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              <Label>Ruang Rapat *</Label>
-              <Select
-                value={form.roomId}
-                onChange={(e) => setForm((f) => ({ ...f, roomId: e.target.value }))}
-              >
-                <option value="">- Pilih ruang -</option>
-                {rooms.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          )}
-          <div className="space-y-1.5">
-            <Label>Tanggal *</Label>
-            <Input
-              type="date"
-              value={form.date}
-              onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Jam Mulai *</Label>
-              <Input
-                type="time"
-                value={form.startTime}
-                onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Jam Selesai *</Label>
-              <Input
-                type="time"
-                value={form.endTime}
-                onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
-              />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Divisi / Departemen</Label>
-            <Input
-              value={form.department}
-              onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
-              placeholder="Kosongkan untuk pakai divisi Anda"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Deskripsi Kegiatan *</Label>
-            <Textarea
-              value={form.title}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-              placeholder="Agenda / topik meeting"
-            />
-          </div>
-
-          <div className="rounded-lg border border-slate-200 p-3">
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-              <input
-                type="checkbox"
-                className="h-4 w-4"
-                checked={form.recur}
-                onChange={(e) => setForm((f) => ({ ...f, recur: e.target.checked }))}
-              />
-              Ulangi (meeting berulang)
-            </label>
-
-            {form.recur && (
-              <div className="mt-3 space-y-3">
-                <div className="space-y-1.5">
-                  <Label>Pola</Label>
-                  <Select
-                    value={form.freq}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        freq: e.target.value as typeof f.freq,
-                      }))
-                    }
-                  >
-                    <option value="WEEKLY">Mingguan (pilih hari)</option>
-                    <option value="WEEKDAY">Setiap hari kerja (Sen–Jum)</option>
-                    <option value="MONTHLY">Bulanan (tanggal sama)</option>
-                  </Select>
+      {/* ── booking detail panel ── */}
+      {detailBooking && (() => {
+        const b = detailBooking;
+        const mine = b.employeeId === data?.meId;
+        const now = Date.now();
+        const startMs = new Date(b.startAt).getTime();
+        const canCheckin = mine && b.status === "BOOKED" && now >= startMs - GRACE_MS && now <= startMs + GRACE_MS;
+        const canCancel = mine && (b.status === "BOOKED" || b.status === "CHECKED_IN");
+        const isCheckedIn = b.status === "CHECKED_IN" || b.status === "AUTO_CHECKED_IN";
+        return (
+          <div className="fixed inset-x-0 bottom-0 z-50 sm:bottom-4 sm:right-4 sm:left-auto sm:w-80">
+            <div className="rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+              {/* header */}
+              <div className={cn(
+                "px-4 py-3 flex items-start justify-between gap-2",
+                isCheckedIn ? "bg-emerald-50 border-b border-emerald-100" : "bg-amber-50 border-b border-amber-100"
+              )}>
+                <div className="min-w-0">
+                  <p className="font-semibold text-slate-800 text-sm truncate">{b.title}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {wibHm(b.startAt)}–{wibHm(b.endAt)} · {b.roomName}
+                  </p>
                 </div>
-
-                {form.freq === "WEEKLY" && (
-                  <div className="flex flex-wrap gap-1">
-                    {WEEKDAYS.map((d) => (
-                      <button
-                        key={d.v}
-                        type="button"
-                        onClick={() => toggleWeekday(d.v)}
-                        className={`rounded-lg px-2.5 py-1 text-xs font-medium ${
-                          form.weekdays.includes(d.v)
-                            ? "bg-brand-600 text-white"
-                            : "bg-slate-100 text-slate-600"
-                        }`}
+                <button
+                  onClick={() => setDetailBooking(null)}
+                  className="rounded-lg p-1 text-slate-400 hover:bg-white/60 transition-colors shrink-0"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              {/* body */}
+              <div className="px-4 py-3 space-y-2">
+                <p className="text-xs text-slate-500">
+                  {b.department ? `${b.department} · ` : ""}{b.employeeName}
+                </p>
+                <div className="flex items-center gap-1">
+                  <span className={cn(
+                    "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                    isCheckedIn ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"
+                  )}>
+                    {b.status === "AUTO_CHECKED_IN" ? "Auto check-in" : isCheckedIn ? "Check-in" : "Dipesan"}
+                  </span>
+                  {b.seriesId && (
+                    <span className="text-xs text-slate-400">· Berulang</span>
+                  )}
+                </div>
+                {(canCheckin || canCancel) && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {canCheckin && (
+                      <Button
+                        size="sm"
+                        variant="success"
+                        onClick={() => act(b.id, "checkin")}
+                        disabled={busyId === b.id}
                       >
-                        {d.l}
-                      </button>
-                    ))}
+                        {busyId === b.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                        Check-in
+                      </Button>
+                    )}
+                    {canCancel && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => act(b.id, "cancel", "one")}
+                        disabled={busyId === b.id}
+                      >
+                        Batalkan
+                      </Button>
+                    )}
+                    {canCancel && b.seriesId && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => act(b.id, "cancel", "series")}
+                        disabled={busyId === b.id}
+                      >
+                        Batalkan seri
+                      </Button>
+                    )}
                   </div>
                 )}
-
-                <div className="space-y-1.5">
-                  <Label>Berakhir</Label>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <label className="flex items-center gap-1.5 text-sm">
-                      <input
-                        type="radio"
-                        checked={form.endMode === "date"}
-                        onChange={() => setForm((f) => ({ ...f, endMode: "date" }))}
-                      />
-                      Sampai tanggal
-                    </label>
-                    <Input
-                      type="date"
-                      value={form.untilDate}
-                      disabled={form.endMode !== "date"}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, untilDate: e.target.value }))
-                      }
-                      className="w-auto"
-                    />
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <label className="flex items-center gap-1.5 text-sm">
-                      <input
-                        type="radio"
-                        checked={form.endMode === "count"}
-                        onChange={() => setForm((f) => ({ ...f, endMode: "count" }))}
-                      />
-                      Jumlah pertemuan
-                    </label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={form.count}
-                      disabled={form.endMode !== "count"}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, count: Number(e.target.value) }))
-                      }
-                      className="w-24"
-                    />
-                  </div>
-                </div>
               </div>
-            )}
-          </div>
-
-          {err && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              {err}
             </div>
-          )}
-
-          <div className="flex justify-end gap-2 pt-1">
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Batal
-            </Button>
-            <Button onClick={submit} disabled={saving}>
-              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Book
-            </Button>
           </div>
-        </div>
-      </Dialog>
+        );
+      })()}
+
+      {/* backdrop for detail panel */}
+      {detailBooking && (
+        <div
+          className="fixed inset-0 z-40 sm:hidden"
+          onClick={() => setDetailBooking(null)}
+        />
+      )}
+
+      {/* ── booking modal ── */}
+      <BookingModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        rooms={rooms}
+        initialRoomId={modalRoomId}
+        initialDate={date}
+        initialStartTime={modalStartTime}
+        onSuccess={handleBookingSuccess}
+      />
     </div>
   );
 }
