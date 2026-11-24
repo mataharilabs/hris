@@ -14,7 +14,7 @@ export async function usedAnnualLeave(
   const rows = await prisma.leaveRequest.findMany({
     where: {
       employeeId,
-      type: "ANNUAL",
+      type: { in: ["ANNUAL", "SICK"] },
       status: { in: ["PENDING", "APPROVED"] },
       startDate: { gte: start, lt: end },
     },
@@ -42,7 +42,7 @@ export async function annualLeaveBalance(
   const rows = await prisma.leaveRequest.findMany({
     where: {
       employeeId,
-      type: "ANNUAL",
+      type: { in: ["ANNUAL", "SICK"] },
       status: { in: ["PENDING", "APPROVED"] },
       startDate: { gte: start, lt: end },
     },

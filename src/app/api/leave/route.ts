@@ -218,7 +218,7 @@ export async function POST(req: NextRequest) {
       days = data.isHalfDay ? 0.5 : dayCount(start, end);
     }
 
-    if (data.type === "ANNUAL") {
+    if (data.type === "ANNUAL" || data.type === "SICK") {
       const emp = await prisma.employee.findUnique({
         where: { id: user.id },
         select: { leaveQuota: true, leaveAdjustment: true },
@@ -231,7 +231,7 @@ export async function POST(req: NextRequest) {
       if (days > balance.remaining) {
         return ok(
           {
-            error: `Sisa cuti tahunan tidak cukup (sisa ${balance.remaining} hari, diminta ${days} hari)`,
+            error: `Sisa saldo cuti tidak cukup (sisa ${balance.remaining} hari, diminta ${days} hari)`,
           },
           400
         );

@@ -43,9 +43,11 @@ const MONTH_NAMES = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agt","Sep","Okt"
 function MiniCalendar({
   selected,
   onChange,
+  allowPast = false,
 }: {
   selected: string[];
   onChange: (dates: string[]) => void;
+  allowPast?: boolean;
 }) {
   const today = new Date();
   const [vy, setVy] = useState(today.getFullYear());
@@ -71,7 +73,7 @@ function MiniCalendar({
   }
 
   function toggle(ds: string) {
-    if (ds < todayStr) return;
+    if (!allowPast && ds < todayStr) return;
     onChange(
       selected.includes(ds)
         ? selected.filter((x) => x !== ds)
@@ -100,7 +102,7 @@ function MiniCalendar({
       <div className="grid grid-cols-7 gap-0.5">
         {cells.map((ds, i) => {
           if (!ds) return <div key={i} />;
-          const past = ds < todayStr;
+          const past = !allowPast && ds < todayStr;
           const sel = selected.includes(ds);
           const isSun = new Date(`${ds}T12:00:00Z`).getUTCDay() === 0;
           const isToday = ds === todayStr;
@@ -362,10 +364,15 @@ export function LeaveForm() {
     };
   }
 
+  const deductsBalance = form.type === "ANNUAL" || form.type === "SICK";
+
   const remainingAfter: number | null =
-    form.type === "ANNUAL" && balance !== null && durDays !== null
+    deductsBalance && balance !== null && durDays !== null
       ? balance.remaining - durDays
       : null;
+
+  // SICK_CERTIFIED: boleh mengisi tanggal lampau
+  const allowPastDate = form.type === "SICK_CERTIFIED";
 
   // ─── OTP helpers ───────────────────────────────────────────────────────────
 
@@ -622,7 +629,7 @@ export function LeaveForm() {
                         {meta && (
                           <p className="mt-0.5 text-xs text-slate-500 leading-tight">{meta.sub}</p>
                         )}
-                        {v === "ANNUAL" && balance !== null && (
+                        {(v === "ANNUAL" || v === "SICK") && balance !== null && (
                           <p className={cn(
                             "mt-1.5 text-xs font-semibold",
                             balance.remaining > 0 ? "text-emerald-600" : "text-red-500"
@@ -630,11 +637,31 @@ export function LeaveForm() {
                             Sisa {balance.remaining} hari
                           </p>
                         )}
+                        {v === "SICK_CERTIFIED" && (
+                          <p className="mt-1.5 text-xs font-semibold text-blue-600">
+                            Tidak memotong saldo
+                          </p>
+                        )}
                       </button>
                     );
                   })}
                 </div>
               </div>
+
+              {/* Info banner: SICK_CERTIFIED tidak memotong saldo */}
+              {form.type === "SICK_CERTIFIED" && (
+                <div className="flex items-start gap-3 rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-xs text-blue-700">
+                  <svg className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 110 20A10 10 0 0112 2z" />
+                  </svg>
+                  <div>
+                    <p className="font-semibold text-blue-800">Cuti sakit bersertifikat tidak memotong saldo cuti.</p>
+                    <p className="mt-0.5 leading-relaxed">
+                      Surat dokter wajib diserahkan ke HR setelah masuk kembali. Kamu juga bisa mengisi formulir ini untuk hari yang sudah lewat jika lupa mengajukan.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Mode tanggal — 4 pilihan */}
               <div>
@@ -675,7 +702,7 @@ export function LeaveForm() {
                   <Label>Tanggal *</Label>
                   <input
                     type="date"
-                    min={new Date().toISOString().slice(0, 10)}
+                    min={allowPastDate ? undefined : new Date().toISOString().slice(0, 10)}
                     value={form.startDate}
                     onChange={(e) => {
                       setForm((p) => ({ ...p, startDate: e.target.value, endDate: e.target.value }));
@@ -715,7 +742,7 @@ export function LeaveForm() {
                     <Label>Tanggal Mulai *</Label>
                     <input
                       type="date"
-                      min={new Date().toISOString().slice(0, 10)}
+                      min={allowPastDate ? undefined : new Date().toISOString().slice(0, 10)}
                       value={form.startDate}
                       onChange={(e) => {
                         const v = e.target.value;
@@ -738,7 +765,7 @@ export function LeaveForm() {
                     <Label>Tanggal Selesai *</Label>
                     <input
                       type="date"
-                      min={form.startDate || new Date().toISOString().slice(0, 10)}
+                      min={allowPastDate ? form.startDate || undefined : form.startDate || new Date().toISOString().slice(0, 10)}
                       value={form.endDate}
                       onChange={(e) => {
                         setForm((p) => ({ ...p, endDate: e.target.value }));
@@ -764,6 +791,7 @@ export function LeaveForm() {
                       setForm((p) => ({ ...p, customDates: dates }));
                       clearErr("customDates");
                     }}
+                    allowPast={allowPastDate}
                   />
                   {form.customDates.length > 0 && (
                     <p className="text-xs text-slate-500">
@@ -789,13 +817,16 @@ export function LeaveForm() {
                     remainingAfter !== null && remainingAfter < 0 ? "text-amber-700" : "text-emerald-700"
                   )}>
                     {durDays === 0.5 ? "0,5 hari kerja" : `${durDays} hari kerja`}
-                    {form.type === "ANNUAL" && remainingAfter !== null && (
+                    {deductsBalance && remainingAfter !== null && (
                       <>
                         {" · "}
                         {remainingAfter < 0
                           ? `melebihi saldo ${Math.abs(remainingAfter)} hari`
                           : `sisa saldo menjadi ${remainingAfter} hari`}
                       </>
+                    )}
+                    {form.type === "SICK_CERTIFIED" && (
+                      <> · tidak memotong saldo</>
                     )}
                   </p>
                 </div>
