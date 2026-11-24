@@ -168,7 +168,16 @@ export async function GET(req: NextRequest) {
       prisma.leaveRequest.count({ where: where as never }),
     ]);
 
-    return ok({ rows, total, page, pageSize: PAGE_SIZE });
+    return ok({
+      rows: rows.map((r) => ({
+        ...r,
+        employeeName: r.employee.name,
+        employeeId: r.employee.id,
+      })),
+      total,
+      page,
+      pageSize: PAGE_SIZE,
+    });
   } catch (e) {
     return handleApiError(e);
   }

@@ -206,6 +206,26 @@ export function BookingModal({
       setSlotStatus({ type: "error", message: `Jam operasional 0${TIMELINE_START}:00–${TIMELINE_END}:00` });
       return;
     }
+    // Blokir tanggal/jam yang sudah terlewat (zona WIB)
+    const nowWib = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
+    if (form.date < nowWib) {
+      setSlotStatus({ type: "error", message: "Tidak bisa memesan jadwal untuk tanggal yang sudah lewat" });
+      return;
+    }
+    if (form.date === nowWib) {
+      const nowParts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Jakarta",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).formatToParts(new Date());
+      const nowH = Number(nowParts.find((p) => p.type === "hour")?.value ?? 0);
+      const nowM = Number(nowParts.find((p) => p.type === "minute")?.value ?? 0);
+      if (startMins <= nowH * 60 + nowM) {
+        setSlotStatus({ type: "error", message: "Jam mulai sudah terlewat, pilih waktu yang akan datang" });
+        return;
+      }
+    }
     const timer = setTimeout(async () => {
       setCheckingSlot(true);
       try {
@@ -245,6 +265,21 @@ export function BookingModal({
     if (!form.date) return setErr("Pilih tanggal");
     if (!form.title.trim()) return setErr("Isi deskripsi kegiatan");
     if (slotStatus?.type === "clash") return setErr("Slot bentrok, pilih waktu lain");
+    // Guard waktu terlewat
+    const nowWib = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
+    if (form.date < nowWib) return setErr("Tidak bisa memesan jadwal untuk tanggal yang sudah lewat");
+    if (form.date === nowWib) {
+      const nowParts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Jakarta",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).formatToParts(new Date());
+      const nowH = Number(nowParts.find((p) => p.type === "hour")?.value ?? 0);
+      const nowM = Number(nowParts.find((p) => p.type === "minute")?.value ?? 0);
+      const [sh, sm] = form.startTime.split(":").map(Number);
+      if (sh * 60 + sm <= nowH * 60 + nowM) return setErr("Jam mulai sudah terlewat, pilih waktu yang akan datang");
+    }
     if (form.recur) {
       if (form.freq === "WEEKLY" && form.weekdays.length === 0) return setErr("Pilih minimal satu hari");
       if (form.endMode === "date" && !form.untilDate) return setErr("Isi tanggal berakhir");
@@ -345,6 +380,7 @@ export function BookingModal({
             <input
               type="date"
               value={form.date}
+              min={new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date())}
               onChange={(e) => set("date", e.target.value)}
               className="h-12 w-full rounded-xl border-[1.5px] border-slate-200 bg-white px-3.5 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15"
             />
