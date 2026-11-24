@@ -28,13 +28,40 @@ export async function annualLeaveBalance(
   employeeId: string,
   quota: number,
   adjustment = 0
-): Promise<{ quota: number; used: number; remaining: number; adjustment: number }> {
-  const used = await usedAnnualLeave(employeeId);
+): Promise<{
+  quota: number;
+  used: number;
+  pending: number;
+  approved: number;
+  remaining: number;
+  adjustment: number;
+}> {
+  const year = new Date().getFullYear();
+  const start = new Date(year, 0, 1);
+  const end = new Date(year + 1, 0, 1);
+  const rows = await prisma.leaveRequest.findMany({
+    where: {
+      employeeId,
+      type: "ANNUAL",
+      status: { in: ["PENDING", "APPROVED"] },
+      startDate: { gte: start, lt: end },
+    },
+    select: { days: true, status: true },
+  });
+  const pending = rows
+    .filter((r) => r.status === "PENDING")
+    .reduce((s, r) => s + r.days, 0);
+  const approved = rows
+    .filter((r) => r.status === "APPROVED")
+    .reduce((s, r) => s + r.days, 0);
+  const used = pending + approved;
   return {
     quota,
     used,
-    adjustment,
+    pending,
+    approved,
     remaining: Math.max(0, quota - used + adjustment),
+    adjustment,
   };
 }
 

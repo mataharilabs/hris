@@ -79,21 +79,96 @@ async function notifyHrNewLeave(
   );
 }
 
-// GET ?scope=mine|all — 'all' hanya untuk HR.
+// GET ?scope=mine|all|pending &year=N &status=X &q=X &month=N &type=X &page=N
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
-    const scope = req.nextUrl.searchParams.get("scope") ?? "mine";
-    const wantAll = scope === "all" && isHr(user.role);
+    const sp = req.nextUrl.searchParams;
+    const scope = sp.get("scope") ?? "mine";
+    const year = parseInt(sp.get("year") ?? "0") || new Date().getFullYear();
+    const status = sp.get("status") ?? "";
+    const q = sp.get("q") ?? "";
+    const month = parseInt(sp.get("month") ?? "0") || 0;
+    const type = sp.get("type") ?? "";
+    const page = Math.max(1, parseInt(sp.get("page") ?? "1") || 1);
+    const PAGE_SIZE = 8;
 
-    const rows = await prisma.leaveRequest.findMany({
-      where: wantAll
-        ? { employee: { companyId: user.companyId } }
-        : { employeeId: user.id },
-      include: { employee: { select: { name: true } } },
-      orderBy: { createdAt: "desc" },
-    });
-    return ok(rows);
+    if (scope === "mine") {
+      const yearStart = new Date(year, 0, 1);
+      const yearEnd = new Date(year + 1, 0, 1);
+      const rows = await prisma.leaveRequest.findMany({
+        where: {
+          employeeId: user.id,
+          startDate: { gte: yearStart, lt: yearEnd },
+          ...(status ? { status: status as never } : {}),
+          ...(q
+            ? { reason: { contains: q, mode: "insensitive" } }
+            : {}),
+        },
+        include: {
+          substitute: { select: { name: true } },
+          manager: { select: { name: true } },
+        },
+        orderBy: { startDate: "desc" },
+      });
+      return ok(rows);
+    }
+
+    if (!isHr(user.role)) return ok({ error: "Akses ditolak" }, 403);
+
+    if (scope === "pending") {
+      const rows = await prisma.leaveRequest.findMany({
+        where: {
+          status: "PENDING",
+          employee: { companyId: user.companyId },
+        },
+        include: {
+          employee: { select: { id: true, name: true } },
+          substitute: { select: { name: true } },
+          manager: { select: { name: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+      return ok(rows);
+    }
+
+    // scope === "all" — HR: semua karyawan, bisa difilter
+    const andClauses: object[] = [
+      { employee: { companyId: user.companyId } },
+      { status: "APPROVED" },
+    ];
+    if (month) {
+      const monthStart = new Date(year, month - 1, 1);
+      const monthEnd = new Date(year, month, 1);
+      andClauses.push({ startDate: { gte: monthStart, lt: monthEnd } });
+    }
+    if (type) andClauses.push({ type });
+    if (q) {
+      andClauses.push({
+        OR: [
+          { reason: { contains: q, mode: "insensitive" } },
+          { employee: { name: { contains: q, mode: "insensitive" } } },
+        ],
+      });
+    }
+    const where = { AND: andClauses };
+
+    const [rows, total] = await Promise.all([
+      prisma.leaveRequest.findMany({
+        where: where as never,
+        include: {
+          employee: { select: { id: true, name: true } },
+          substitute: { select: { name: true } },
+          manager: { select: { name: true } },
+        },
+        orderBy: { startDate: "desc" },
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
+      }),
+      prisma.leaveRequest.count({ where: where as never }),
+    ]);
+
+    return ok({ rows, total, page, pageSize: PAGE_SIZE });
   } catch (e) {
     return handleApiError(e);
   }

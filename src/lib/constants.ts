@@ -44,12 +44,14 @@ export const REQUEST_STATUS_LABELS: Record<string, string> = {
   PENDING: "Menunggu",
   APPROVED: "Disetujui",
   REJECTED: "Ditolak",
+  CANCELLED: "Dibatalkan",
 };
 
 export const REQUEST_STATUS_COLORS: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-700 border-amber-200",
   APPROVED: "bg-emerald-100 text-emerald-700 border-emerald-200",
   REJECTED: "bg-red-100 text-red-700 border-red-200",
+  CANCELLED: "bg-slate-100 text-slate-500 border-slate-200",
 };
 
 export const REIMBURSEMENT_CATEGORIES = [

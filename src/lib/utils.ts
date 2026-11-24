@@ -111,6 +111,51 @@ export function workdayCount(start: Date, end: Date): number {
   return count;
 }
 
+/**
+ * Format rentang tanggal cuti ringkas (id-ID).
+ * "29 Okt 2026" | "20–21 Nov 2026" | "30 Des 2026 – 2 Jan 2027"
+ */
+export function formatLeaveDate(
+  start: Date | string,
+  end: Date | string
+): string {
+  const s = new Date(start);
+  const e = new Date(end);
+  const fmt = (d: Date) =>
+    new Intl.DateTimeFormat("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }).format(d);
+  const isSameDay =
+    s.getFullYear() === e.getFullYear() &&
+    s.getMonth() === e.getMonth() &&
+    s.getDate() === e.getDate();
+  if (isSameDay) return fmt(s);
+  const isSameMonthYear =
+    s.getFullYear() === e.getFullYear() && s.getMonth() === e.getMonth();
+  if (isSameMonthYear) {
+    const startDay = new Intl.DateTimeFormat("id-ID", {
+      day: "numeric",
+    }).format(s);
+    return `${startDay}–${fmt(e)}`;
+  }
+  return `${fmt(s)} – ${fmt(e)}`;
+}
+
+/** Format durasi cuti: "½ hari (Pagi)", "3 hari kerja". */
+export function formatLeaveDuration(
+  days: number,
+  isHalfDay: boolean,
+  halfDaySession?: string | null
+): string {
+  if (isHalfDay) {
+    const sesi = halfDaySession === "AFTERNOON" ? "Siang" : "Pagi";
+    return `½ hari (${sesi})`;
+  }
+  return `${days} hari kerja`;
+}
+
 /** Masa kerja (tahun, desimal 1) dari tanggal masuk. */
 export function tenureYears(value: Date | string | null | undefined): number | null {
   if (!value) return null;

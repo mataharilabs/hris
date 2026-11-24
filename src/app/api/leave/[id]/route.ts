@@ -40,6 +40,9 @@ export async function PATCH(
     if (leave.status !== "PENDING") {
       return ok({ error: "Pengajuan sudah diproses" }, 400);
     }
+    if (action === "REJECT" && !note?.trim()) {
+      return ok({ error: "Alasan penolakan wajib diisi" }, 400);
+    }
 
     const updated = await prisma.leaveRequest.update({
       where: { id },
