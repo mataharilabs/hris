@@ -388,7 +388,7 @@ export function LeaveForm() {
             </div>
 
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-400">Kedua kode berlaku 10 menit.</span>
+              <span className="text-slate-400">Kedua kode berlaku 30 menit.</span>
               <button
                 type="button"
                 onClick={resend}
