@@ -4,6 +4,7 @@ import type { SessionUser } from "@/lib/session";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { KudosWelcome } from "@/components/kudos/KudosWelcome";
+import { CheckinModal } from "@/components/gamification/CheckinModal";
 import type { NavRole } from "@/lib/constants";
 
 export default async function DashboardLayout({
@@ -36,6 +37,7 @@ export default async function DashboardLayout({
           <div className="animate-fade-up">{children}</div>
         </main>
         <KudosWelcome />
+        <CheckinModal />
       </div>
     </div>
   );

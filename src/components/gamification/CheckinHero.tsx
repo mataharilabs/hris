@@ -1,6 +1,5 @@
 "use client";
 
-import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -24,12 +23,6 @@ function greeting(hour: number) {
   return "Selamat malam";
 }
 
-function greetingEmoji(hour: number) {
-  if (hour < 11) return "☀️";
-  if (hour < 15) return "🌤️";
-  if (hour < 18) return "🌇";
-  return "🌙";
-}
 
 type Props = {
   name: string;
@@ -58,14 +51,23 @@ export function CheckinHero({
   const [mood, setMood] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const [showModal, setShowModal] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [modalDone, setModalDone] = useState(false);
-
   useEffect(() => {
-    setMounted(true);
-    if (!initialCheckedIn) setShowModal(true);
-  }, [initialCheckedIn]);
+    const h = (e: Event) => {
+      const detail = (e as CustomEvent<{ streak: number }>).detail;
+      setCheckedIn(true);
+      if (detail?.streak !== undefined) setStreak(detail.streak);
+      setCoworkers((c) => c + 1);
+      setWeek((prev) => {
+        const dow = new Date().getDay();
+        const idx = dow === 0 ? 4 : dow - 1;
+        const next = [...prev];
+        if (idx < 5) next[idx] = true;
+        return next;
+      });
+    };
+    window.addEventListener("checkin:done", h);
+    return () => window.removeEventListener("checkin:done", h);
+  }, []);
 
   async function doCheckin() {
     if (checkedIn || busy) return;
@@ -89,9 +91,9 @@ export function CheckinHero({
           if (idx < 5) next[idx] = true;
           return next;
         });
-        setModalDone(true);
         refreshGami();
         fireConfetti();
+        window.dispatchEvent(new CustomEvent("checkin:done", { detail: { streak: newStreak } }));
       }
     } finally {
       setBusy(false);
@@ -216,78 +218,5 @@ export function CheckinHero({
     </div>
   );
 
-  const modal = mounted && showModal ? createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-      onClick={(e) => { if (e.target === e.currentTarget && modalDone) setShowModal(false); }}
-    >
-      <div className="w-full max-w-[440px] rounded-[22px] bg-white p-6 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
-        {!modalDone ? (
-          <>
-            <div className="text-center text-4xl">{greetingEmoji(hour)}</div>
-            <h2 className="mt-2 text-center text-xl font-extrabold text-slate-900">
-              {greeting(hour)}, {firstName}
-            </h2>
-            <p className="mt-1 text-center text-sm text-slate-500">
-              Check-in dulu sebelum mulai. Cukup sekali sehari dan Anda dapat +5 poin.
-            </p>
-            <div className="mt-4 flex justify-center gap-2">
-              {MOODS.map((m) => (
-                <button
-                  key={m.key}
-                  type="button"
-                  onClick={() => setMood(m.key)}
-                  className={cn(
-                    "flex flex-1 flex-col items-center rounded-[14px] border-[1.5px] px-1 py-2 text-[11.5px] font-semibold transition-all",
-                    mood === m.key
-                      ? "border-[#D6194B] bg-[#FDE8EE] text-[#D6194B] -translate-y-0.5"
-                      : "border-slate-200 bg-white text-slate-400 hover:border-[#D6194B]"
-                  )}
-                >
-                  <span className="mb-0.5 text-2xl leading-none">{m.emoji}</span>
-                  {m.key}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={doCheckin}
-              disabled={busy}
-              className="mt-5 flex h-13 w-full items-center justify-center gap-2 rounded-[14px] bg-[#D6194B] text-base font-bold text-white hover:bg-[#B01239] disabled:opacity-60"
-            >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Check-in sekarang"}
-            </button>
-            <p className="mt-3 text-center text-xs text-slate-400">
-              🔥 Streak Anda <strong>{streak} hari</strong>. Hari ke-{nextMilestone} dapat bonus{bonusPoints ? ` +${bonusPoints} poin` : ""}.
-            </p>
-          </>
-        ) : (
-          <div className="text-center">
-            <div className="mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-2xl font-extrabold text-emerald-600 animate-in zoom-in duration-300">
-              ✓
-            </div>
-            <h2 className="text-xl font-extrabold text-slate-900">Check-in berhasil</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              +5 poin. Streak Anda sekarang {streak} hari{streak % 7 === 0 && streak > 0 ? " dan bonus sudah masuk 🎉" : ""}.
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowModal(false)}
-              className="mt-5 h-12 w-full rounded-[14px] bg-[#D6194B] text-base font-bold text-white hover:bg-[#B01239]"
-            >
-              Lanjut ke beranda
-            </button>
-          </div>
-        )}
-      </div>
-    </div>,
-    document.body
-  ) : null;
-
-  return (
-    <>
-      {heroCard}
-      {modal}
-    </>
-  );
+  return heroCard;
 }
