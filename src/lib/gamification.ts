@@ -114,6 +114,57 @@ export async function hasCheckedInToday(employeeId: string): Promise<boolean> {
   return c > 0;
 }
 
+/** Hitung streak check-in berurutan (hari). */
+export async function getCheckinStreak(employeeId: string): Promise<number> {
+  const fmt = (d: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(d);
+  const rows = await prisma.pointEntry.findMany({
+    where: { employeeId, type: "DAILY_CHECKIN" },
+    orderBy: { createdAt: "desc" },
+    take: 90,
+    select: { createdAt: true },
+  });
+  if (rows.length === 0) return 0;
+  const checked = new Set(rows.map((r) => fmt(r.createdAt)));
+  const todayStr = fmt(new Date());
+  const cursor = new Date();
+  if (!checked.has(todayStr)) cursor.setTime(cursor.getTime() - 86400000);
+  let streak = 0;
+  for (let i = 0; i < 90; i++) {
+    if (checked.has(fmt(cursor))) {
+      streak++;
+      cursor.setTime(cursor.getTime() - 86400000);
+    } else break;
+  }
+  return streak;
+}
+
+/** Check-in Sen–Jum minggu berjalan (WIB). */
+export async function getWeekCheckins(employeeId: string): Promise<boolean[]> {
+  const fmt = (d: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(d);
+  const todayStr = fmt(new Date());
+  const todayWib = new Date(`${todayStr}T00:00:00+07:00`);
+  const dow = todayWib.getDay(); // 0=Sun
+  const daysFromMon = dow === 0 ? 6 : dow - 1;
+  const monday = new Date(todayWib.getTime() - daysFromMon * 86400000);
+  const weekDates = Array.from({ length: 5 }, (_, i) =>
+    fmt(new Date(monday.getTime() + i * 86400000))
+  );
+  const start = new Date(weekDates[0] + "T00:00:00+07:00");
+  const end = new Date(weekDates[4] + "T23:59:59+07:00");
+  const rows = await prisma.pointEntry.findMany({
+    where: { employeeId, type: "DAILY_CHECKIN", createdAt: { gte: start, lte: end } },
+    select: { createdAt: true },
+  });
+  const checked = new Set(rows.map((r) => fmt(r.createdAt)));
+  return weekDates.map((d) => checked.has(d));
+}
+
+export function todayRangeWib() {
+  return todayRange();
+}
+
 type OnboardingEmp = {
   id: string;
   birthDate: Date | null;
