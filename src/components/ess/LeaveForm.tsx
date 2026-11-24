@@ -18,6 +18,7 @@ import { Label, Textarea } from "@/components/ui/input";
 import { toast } from "@/components/ui/toaster";
 import { LEAVE_TYPE_OPTIONS } from "@/lib/constants";
 import { initials, workdayCount, cn } from "@/lib/utils";
+import { fireConfetti } from "@/lib/confetti";
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -362,6 +363,7 @@ export function LeaveForm() {
         dateLabel,
       });
       setStep(3);
+      fireConfetti();
       router.refresh();
     } catch (e) {
       setOtpError((e as Error).message);

@@ -9,6 +9,7 @@ import {
   CalendarDays,
   Loader2,
 } from "lucide-react";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { LeaveBalanceCard } from "./LeaveBalanceCard";
 import { LeaveStatusBadge } from "./LeaveStatusBadge";
 import { LeaveDetailPanel, LeaveItem } from "./LeaveDetailPanel";
@@ -81,9 +82,8 @@ export function HrLeavePage({
   const [loadingMore, setLoadingMore] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [rejectDialog, setRejectDialog] = useState<{ id: string; name: string } | null>(null);
-  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
-  const [undoBar, setUndoBar] = useState<{ id: string; undo: () => void } | null>(null);
-  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Filters for all-employees section
@@ -97,6 +97,7 @@ export function HrLeavePage({
   const [myLeaves, setMyLeaves] = useState<LeaveItem[]>(initialMyLeaves);
   const [selectedMyId, setSelectedMyId] = useState<string | null>(null);
   const [cancellingMyId, setCancellingMyId] = useState<string | null>(null);
+  const [cancelMyConfirmId, setCancelMyConfirmId] = useState<string | null>(null);
 
   const selectedMyLeave = selectedMyId
     ? myLeaves.find((l) => l.id === selectedMyId) ?? null
@@ -131,47 +132,26 @@ export function HrLeavePage({
     toast("Pengajuan cuti ditolak", "success");
   }
 
-  function handleDeleteClick(id: string) {
-    // Optimistic removal
-    setDeletedIds((prev) => new Set(prev).add(id));
+  function handleDeleteClick(id: string, employeeName: string) {
     setExpandedId(null);
+    setDeleteConfirm({ id, name: employeeName });
+  }
 
-    let cancelled = false;
-    function undo() {
-      cancelled = true;
-      setDeletedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-      setUndoBar(null);
-      if (undoTimer.current) clearTimeout(undoTimer.current);
+  async function executeDelete(id: string) {
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/leave/${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error(data.error ?? "Gagal menghapus");
+      setAllLeaves((prev) => prev.filter((l) => l.id !== id));
+      setAllTotal((t) => t - 1);
+      setDeleteConfirm(null);
+      toast("Data cuti dihapus", "success");
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setDeletingId(null);
     }
-
-    setUndoBar({ id, undo });
-    undoTimer.current = setTimeout(async () => {
-      setUndoBar(null);
-      if (cancelled) return;
-      try {
-        const res = await fetch(`/api/leave/${id}`, { method: "DELETE" });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || data.error) throw new Error(data.error ?? "Gagal menghapus");
-        setAllLeaves((prev) => prev.filter((l) => l.id !== id));
-        setDeletedIds((prev) => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
-      } catch (e) {
-        // Restore on error
-        setDeletedIds((prev) => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
-        toast((e as Error).message, "error");
-      }
-    }, 5000);
   }
 
   async function fetchFiltered(q: string, month: number, type: string, page: number, append = false) {
@@ -216,8 +196,11 @@ export function HrLeavePage({
   }
 
   // "Cuti saya" cancel
-  async function handleCancelMine(id: string) {
-    if (!confirm("Batalkan pengajuan cuti ini?")) return;
+  function handleCancelMine(id: string) {
+    setCancelMyConfirmId(id);
+  }
+
+  async function executeCancelMine(id: string) {
     setCancellingMyId(id);
     try {
       const res = await fetch(`/api/leave/${id}/cancel`, { method: "POST" });
@@ -227,6 +210,7 @@ export function HrLeavePage({
         prev.map((l) => (l.id === id ? { ...l, status: "CANCELLED" } : l))
       );
       setSelectedMyId(null);
+      setCancelMyConfirmId(null);
       toast("Pengajuan cuti dibatalkan", "success");
     } catch (e) {
       toast((e as Error).message, "error");
@@ -243,7 +227,7 @@ export function HrLeavePage({
     }, 150);
   }
 
-  const visibleAll = allLeaves.filter((l) => !deletedIds.has(l.id));
+  const visibleAll = allLeaves;
   const shownCount = visibleAll.length;
   const remaining = allTotal - shownCount;
 
@@ -483,7 +467,7 @@ export function HrLeavePage({
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleDeleteClick(l.id);
+                                    handleDeleteClick(l.id, l.employeeName);
                                   }}
                                   title="Hapus"
                                   className="inline-flex items-center rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
@@ -538,7 +522,7 @@ export function HrLeavePage({
                         </div>
                         {isAdmin && (
                           <button
-                            onClick={() => handleDeleteClick(l.id)}
+                            onClick={() => handleDeleteClick(l.id, l.employeeName)}
                             className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -659,18 +643,33 @@ export function HrLeavePage({
         />
       )}
 
-      {/* Undo bar (delete) */}
-      {undoBar && (
-        <div className="fixed bottom-16 left-1/2 z-[300] flex -translate-x-1/2 items-center gap-3 rounded-xl bg-slate-900 px-5 py-3 text-sm text-white shadow-xl">
-          <span>Pengajuan dihapus. Jatah cuti dikembalikan.</span>
-          <button
-            onClick={undoBar.undo}
-            className="font-semibold underline underline-offset-2 hover:no-underline"
-          >
-            Urungkan
-          </button>
-        </div>
-      )}
+      {/* Delete confirmation modal */}
+      <ConfirmModal
+        open={deleteConfirm !== null}
+        title="Hapus Data Cuti"
+        message={
+          deleteConfirm
+            ? `Hapus data cuti ${deleteConfirm.name} secara permanen? Jatah cuti akan dikembalikan dan data tidak dapat dipulihkan.`
+            : ""
+        }
+        confirmLabel="Ya, hapus"
+        variant="danger"
+        loading={deletingId !== null}
+        onConfirm={() => deleteConfirm && executeDelete(deleteConfirm.id)}
+        onCancel={() => setDeleteConfirm(null)}
+      />
+
+      {/* Cancel-mine confirmation modal */}
+      <ConfirmModal
+        open={cancelMyConfirmId !== null}
+        title="Batalkan Pengajuan Cuti"
+        message="Batalkan pengajuan cuti ini? Tindakan ini tidak bisa diurungkan."
+        confirmLabel="Ya, batalkan"
+        variant="danger"
+        loading={cancellingMyId !== null}
+        onConfirm={() => cancelMyConfirmId && executeCancelMine(cancelMyConfirmId)}
+        onCancel={() => setCancelMyConfirmId(null)}
+      />
     </div>
   );
 }

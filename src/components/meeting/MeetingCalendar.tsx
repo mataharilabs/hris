@@ -8,10 +8,13 @@ import {
   CheckCircle2,
   X,
   Calendar,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
+import { fireConfetti } from "@/lib/confetti";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { BookingModal } from "./BookingModal";
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -31,7 +34,15 @@ type Booking = {
   employeeId: string;
   employeeName: string;
 };
-type Data = { date: string; meId: string; rooms: Room[]; bookings: Booking[] };
+type Data = { date: string; meId: string; isHr: boolean; isAdmin: boolean; rooms: Room[]; bookings: Booking[] };
+
+type ConfirmState = {
+  title: string;
+  message: string;
+  variant?: "danger" | "default";
+  confirmLabel?: string;
+  onConfirm: () => Promise<void>;
+} | null;
 
 // ─── timeline constants ───────────────────────────────────────────────────────
 
@@ -142,6 +153,8 @@ export function MeetingCalendar() {
   const [modalRoomId, setModalRoomId] = useState<string | undefined>(undefined);
   const [modalStartTime, setModalStartTime] = useState<string | undefined>(undefined);
   const [animateIds, setAnimateIds] = useState<Set<string>>(new Set());
+  const [confirmState, setConfirmState] = useState<ConfirmState>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
   const prevIdsRef = useRef<Set<string>>(new Set());
 
   // Load data
@@ -204,12 +217,6 @@ export function MeetingCalendar() {
   }
 
   async function act(id: string, action: "checkin" | "cancel", scope?: "one" | "series") {
-    if (action === "cancel") {
-      const msg = scope === "series"
-        ? "Batalkan SELURUH seri (pertemuan mendatang)?"
-        : "Batalkan booking ini?";
-      if (!confirm(msg)) return;
-    }
     setBusyId(id);
     try {
       const res = await fetch(`/api/meetings/${id}/${action}`, {
@@ -221,6 +228,7 @@ export function MeetingCalendar() {
       if (!res.ok || d.error) throw new Error(d.error ?? "Gagal");
       toast(action === "checkin" ? "Check-in berhasil!" : "Booking dibatalkan", "success");
       setDetailBooking(null);
+      setConfirmState(null);
       load(date);
     } catch (e) {
       toast((e as Error).message, "error");
@@ -229,11 +237,52 @@ export function MeetingCalendar() {
     }
   }
 
+  function requestCancel(id: string, scope: "one" | "series") {
+    setConfirmState({
+      title: "Batalkan Booking",
+      message:
+        scope === "series"
+          ? "Batalkan seluruh seri? Semua pertemuan mendatang dalam seri ini akan dibatalkan."
+          : "Batalkan booking ini? Ruangan akan dikosongkan kembali.",
+      confirmLabel: "Ya, batalkan",
+      variant: "danger",
+      onConfirm: () => act(id, "cancel", scope),
+    });
+  }
+
+  async function executeDelete(id: string) {
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/meetings/${id}`, { method: "DELETE" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d.error) throw new Error(d.error ?? "Gagal menghapus");
+      toast("Data meeting dihapus", "success");
+      setDetailBooking(null);
+      setConfirmState(null);
+      load(date);
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function requestDelete(id: string, title: string) {
+    setConfirmState({
+      title: "Hapus Data Meeting",
+      message: `Hapus meeting "${title}" secara permanen? Data tidak dapat dikembalikan.`,
+      confirmLabel: "Ya, hapus",
+      variant: "danger",
+      onConfirm: () => executeDelete(id),
+    });
+  }
+
   function handleBookingSuccess(created: number, skipped: string[]) {
     const msg =
       `${created} jadwal dipesan. Jangan lupa check-in.` +
       (skipped.length > 0 ? ` ${skipped.length} dilewati karena bentrok.` : "");
     toast(msg, "success");
+    fireConfetti();
     if (data?.date !== date) setDate(data?.date ?? date);
     else load(date, true);
   }
@@ -470,10 +519,13 @@ export function MeetingCalendar() {
       {detailBooking && (() => {
         const b = detailBooking;
         const mine = b.employeeId === data?.meId;
+        const hrView = data?.isHr ?? false;
+        const isAdminView = data?.isAdmin ?? false;
         const now = Date.now();
         const startMs = new Date(b.startAt).getTime();
+        const isActive = b.status === "BOOKED" || b.status === "CHECKED_IN";
         const canCheckin = mine && b.status === "BOOKED" && now >= startMs - GRACE_MS && now <= startMs + GRACE_MS;
-        const canCancel = mine && (b.status === "BOOKED" || b.status === "CHECKED_IN");
+        const canCancel = isActive && (mine || (hrView && startMs > now));
         const isCheckedIn = b.status === "CHECKED_IN" || b.status === "AUTO_CHECKED_IN";
         return (
           <div className="fixed inset-x-0 bottom-0 z-50 sm:bottom-4 sm:right-4 sm:left-auto sm:w-80">
@@ -512,7 +564,7 @@ export function MeetingCalendar() {
                     <span className="text-xs text-slate-400">· Berulang</span>
                   )}
                 </div>
-                {(canCheckin || canCancel) && (
+                {(canCheckin || canCancel || isAdminView) && (
                   <div className="flex flex-wrap gap-2 pt-1">
                     {canCheckin && (
                       <Button
@@ -529,7 +581,7 @@ export function MeetingCalendar() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => act(b.id, "cancel", "one")}
+                        onClick={() => requestCancel(b.id, "one")}
                         disabled={busyId === b.id}
                       >
                         Batalkan
@@ -539,10 +591,22 @@ export function MeetingCalendar() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => act(b.id, "cancel", "series")}
+                        onClick={() => requestCancel(b.id, "series")}
                         disabled={busyId === b.id}
                       >
                         Batalkan seri
+                      </Button>
+                    )}
+                    {isAdminView && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => requestDelete(b.id, b.title)}
+                        disabled={busyId === b.id}
+                        className="text-red-500 hover:bg-red-50 hover:text-red-600"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Hapus
                       </Button>
                     )}
                   </div>
@@ -560,6 +624,23 @@ export function MeetingCalendar() {
           onClick={() => setDetailBooking(null)}
         />
       )}
+
+      {/* ── confirm modal ── */}
+      <ConfirmModal
+        open={confirmState !== null}
+        title={confirmState?.title ?? ""}
+        message={confirmState?.message ?? ""}
+        confirmLabel={confirmState?.confirmLabel}
+        variant={confirmState?.variant}
+        loading={confirmBusy}
+        onConfirm={async () => {
+          if (!confirmState) return;
+          setConfirmBusy(true);
+          await confirmState.onConfirm();
+          setConfirmBusy(false);
+        }}
+        onCancel={() => setConfirmState(null)}
+      />
 
       {/* ── booking modal ── */}
       <BookingModal

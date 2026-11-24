@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireUser, isHr } from "@/lib/session";
 import { handleApiError, ok } from "@/lib/api";
 import { randomUUID } from "node:crypto";
 import {
@@ -76,6 +76,8 @@ export async function GET(req: NextRequest) {
     return ok({
       date: dateStr,
       meId: user.id,
+      isHr: isHr(user.role),
+      isAdmin: user.role === "HR_ADMIN",
       rooms,
       bookings: bookings.map((b) => ({
         id: b.id,

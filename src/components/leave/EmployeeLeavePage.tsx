@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useRef } from "react";
 import { Search, CalendarDays, ChevronRight } from "lucide-react";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { LeaveBalanceCard } from "./LeaveBalanceCard";
 import { LeaveStatusBadge } from "./LeaveStatusBadge";
 import { LeaveDetailPanel, LeaveItem } from "./LeaveDetailPanel";
@@ -49,6 +50,7 @@ export function EmployeeLeavePage({ initialLeaves, balance, currentYear }: Props
   const [searchQ, setSearchQ] = useState("");
   const [loadingYear, setLoadingYear] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
 
   async function changeYear(y: number) {
     setYear(y);
@@ -108,8 +110,7 @@ export function EmployeeLeavePage({ initialLeaves, balance, currentYear }: Props
 
   const selectedLeave = selectedId ? leaves.find((l) => l.id === selectedId) ?? null : null;
 
-  async function handleCancel(id: string) {
-    if (!confirm("Batalkan pengajuan cuti ini? Tindakan ini tidak bisa diurungkan.")) return;
+  async function executeCancel(id: string) {
     setCancelling(true);
     try {
       const res = await fetch(`/api/leave/${id}/cancel`, { method: "POST" });
@@ -119,12 +120,17 @@ export function EmployeeLeavePage({ initialLeaves, balance, currentYear }: Props
         prev.map((l) => (l.id === id ? { ...l, status: "CANCELLED" } : l))
       );
       setSelectedId(null);
+      setCancelConfirmId(null);
       toast("Pengajuan cuti dibatalkan", "success");
     } catch (e) {
       toast((e as Error).message, "error");
     } finally {
       setCancelling(false);
     }
+  }
+
+  function handleCancel(id: string) {
+    setCancelConfirmId(id);
   }
 
   function handleResubmit() {
@@ -380,6 +386,18 @@ export function EmployeeLeavePage({ initialLeaves, balance, currentYear }: Props
           onResubmit={handleResubmit}
         />
       )}
+
+      {/* Cancel confirmation modal */}
+      <ConfirmModal
+        open={cancelConfirmId !== null}
+        title="Batalkan Pengajuan Cuti"
+        message="Batalkan pengajuan cuti ini? Tindakan ini tidak bisa diurungkan."
+        confirmLabel="Ya, batalkan"
+        variant="danger"
+        loading={cancelling}
+        onConfirm={() => cancelConfirmId && executeCancel(cancelConfirmId)}
+        onCancel={() => setCancelConfirmId(null)}
+      />
     </div>
   );
 }
