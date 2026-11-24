@@ -371,8 +371,7 @@ export function LeaveForm() {
       ? balance.remaining - durDays
       : null;
 
-  // SICK_CERTIFIED: boleh mengisi tanggal lampau
-  const allowPastDate = form.type === "SICK_CERTIFIED";
+  const allowPastDate = true;
 
   // ─── OTP helpers ───────────────────────────────────────────────────────────
 
@@ -657,7 +656,7 @@ export function LeaveForm() {
                   <div>
                     <p className="font-semibold text-blue-800">Cuti sakit bersertifikat tidak memotong saldo cuti.</p>
                     <p className="mt-0.5 leading-relaxed">
-                      Surat dokter wajib diserahkan ke HR setelah masuk kembali. Kamu juga bisa mengisi formulir ini untuk hari yang sudah lewat jika lupa mengajukan.
+                      Surat dokter wajib diserahkan ke HR setelah masuk kembali.
                     </p>
                   </div>
                 </div>
