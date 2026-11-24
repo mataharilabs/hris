@@ -7,6 +7,7 @@ import {
   UserCircle,
   DoorOpen,
   Heart,
+  MessageSquare,
   type LucideIcon,
 } from "lucide-react";
 
@@ -24,6 +25,7 @@ export type NavGroup = {
 
 const ALL: NavRole[] = ["HR_ADMIN", "HR_STAFF", "EMPLOYEE"];
 const HR: NavRole[] = ["HR_ADMIN", "HR_STAFF"];
+const ADMIN: NavRole[] = ["HR_ADMIN"];
 
 export const NAV_GROUPS: NavGroup[] = [
   {
@@ -31,6 +33,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: HR },
       { label: "Karyawan", href: "/employees", icon: Users, roles: HR },
+      { label: "Notifikasi WA", href: "/wa-blast", icon: MessageSquare, roles: ADMIN },
     ],
   },
   {

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { notify } from "@/lib/notify-client";
+import { notify, notifyGroup } from "@/lib/notify-client";
 import { autoCheckinExpired } from "@/lib/meeting";
 
 const REMIND_LEAD_MS = 5 * 60 * 1000; // ingatkan ~5 menit sebelum mulai
@@ -65,5 +65,19 @@ export async function GET(req: NextRequest) {
     sent++;
   }
 
-  return Response.json({ ok: true, reminded: sent, due: due.length });
+  // Kirim wa-blast yang sudah waktunya.
+  const pendingBlasts = await prisma.waBlast.findMany({
+    where: { status: "PENDING", scheduledAt: { lte: now } },
+  });
+  if (pendingBlasts.length > 0) {
+    await prisma.waBlast.updateMany({
+      where: { id: { in: pendingBlasts.map((b) => b.id) } },
+      data: { status: "SENT", sentAt: now },
+    });
+    for (const blast of pendingBlasts) {
+      await notifyGroup(blast.message);
+    }
+  }
+
+  return Response.json({ ok: true, reminded: sent, due: due.length, blastsSent: pendingBlasts.length });
 }
