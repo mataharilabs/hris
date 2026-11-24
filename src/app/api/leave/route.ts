@@ -16,6 +16,7 @@ const schema = z.object({
   endDate: z.string().min(1),
   isHalfDay: z.boolean().optional().default(false),
   halfDaySession: z.enum(["MORNING", "AFTERNOON"]).optional(),
+  customDates: z.array(z.string()).optional(), // hari tidak berurutan
   reason: z.string().min(1, "Alasan cuti wajib diisi"),
   task: z.string().optional(),
   substituteId: z.string().min(1, "Pilih karyawan pengganti"),
@@ -188,21 +189,34 @@ export async function POST(req: NextRequest) {
     const user = await requireUser();
     const data = schema.parse(await req.json());
 
-    const start = new Date(data.startDate);
-    const end = new Date(data.endDate);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      return ok({ error: "Tanggal tidak valid" }, 400);
+    // Hitung startDate, endDate, days — mendukung customDates (hari tidak berurutan)
+    let start: Date;
+    let end: Date;
+    let days: number;
+
+    if (data.customDates && data.customDates.length > 0) {
+      const sorted = [...data.customDates].filter(Boolean).sort();
+      if (sorted.length === 0) return ok({ error: "Tanggal tidak valid" }, 400);
+      start = new Date(sorted[0]);
+      end = new Date(sorted[sorted.length - 1]);
+      days = sorted.length;
+    } else {
+      start = new Date(data.startDate);
+      end = new Date(data.endDate);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return ok({ error: "Tanggal tidak valid" }, 400);
+      }
+      if (end < start) {
+        return ok({ error: "Tanggal selesai sebelum tanggal mulai" }, 400);
+      }
+      if (data.isHalfDay && data.startDate !== data.endDate) {
+        return ok({ error: "Cuti setengah hari hanya untuk satu tanggal" }, 400);
+      }
+      if (data.isHalfDay && !data.halfDaySession) {
+        return ok({ error: "Pilih sesi (Pagi atau Siang) untuk cuti setengah hari" }, 400);
+      }
+      days = data.isHalfDay ? 0.5 : dayCount(start, end);
     }
-    if (end < start) {
-      return ok({ error: "Tanggal selesai sebelum tanggal mulai" }, 400);
-    }
-    if (data.isHalfDay && data.startDate !== data.endDate) {
-      return ok({ error: "Cuti setengah hari hanya untuk satu tanggal" }, 400);
-    }
-    if (data.isHalfDay && !data.halfDaySession) {
-      return ok({ error: "Pilih sesi (Pagi atau Siang) untuk cuti setengah hari" }, 400);
-    }
-    const days = data.isHalfDay ? 0.5 : dayCount(start, end);
 
     if (data.type === "ANNUAL") {
       const emp = await prisma.employee.findUnique({
@@ -266,6 +280,9 @@ export async function POST(req: NextRequest) {
           days,
           isHalfDay: data.isHalfDay ?? false,
           halfDaySession: data.isHalfDay ? (data.halfDaySession ?? null) : null,
+          customDates: data.customDates && data.customDates.length > 0
+            ? JSON.stringify([...data.customDates].sort())
+            : null,
           reason: data.reason,
           task: data.task || null,
           substituteId: data.substituteId,

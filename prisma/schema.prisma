@@ -169,6 +169,7 @@ model LeaveRequest {
   days            Float
   isHalfDay       Boolean @default(false)
   halfDaySession  String? // "MORNING" | "AFTERNOON" — hanya relevan jika isHalfDay
+  customDates     String? // JSON: ["YYYY-MM-DD", ...] untuk hari tidak berurutan
   reason     String?
   task       String? // tugas/hand-over selama cuti (opsional)
   status     RequestStatus @default(PENDING)

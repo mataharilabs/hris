@@ -12,6 +12,8 @@ import {
   CheckCircle2,
   ShieldCheck,
   RefreshCw,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label, Textarea } from "@/components/ui/input";
@@ -27,12 +29,117 @@ type SentInfo = { name: string; email: string | null; phone: string | null };
 type LeaveBalance = { remaining: number; quota: number; used: number };
 type FieldErrors = Partial<Record<string, string>>;
 
+type DateMode = "half" | "one" | "range" | "custom";
+
+const DATE_MODES: { key: DateMode; label: string; desc: string }[] = [
+  { key: "half", label: "½ Hari", desc: "Setengah hari" },
+  { key: "one", label: "1 Hari", desc: "Satu hari penuh" },
+  { key: "range", label: "Beberapa Hari", desc: "Tanggal mulai–selesai" },
+  { key: "custom", label: "Hari Tertentu", desc: "Pilih hari tidak berurutan" },
+];
+
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agt","Sep","Okt","Nov","Des"];
+
+function MiniCalendar({
+  selected,
+  onChange,
+}: {
+  selected: string[];
+  onChange: (dates: string[]) => void;
+}) {
+  const today = new Date();
+  const [vy, setVy] = useState(today.getFullYear());
+  const [vm, setVm] = useState(today.getMonth());
+  const todayStr = today.toISOString().slice(0, 10);
+
+  function prevMonth() {
+    if (vm === 0) { setVy((y) => y - 1); setVm(11); }
+    else setVm((m) => m - 1);
+  }
+  function nextMonth() {
+    if (vm === 11) { setVy((y) => y + 1); setVm(0); }
+    else setVm((m) => m + 1);
+  }
+
+  const daysInMonth = new Date(vy, vm + 1, 0).getDate();
+  const firstWd = (new Date(vy, vm, 1).getDay() + 6) % 7; // Mon=0
+  const cells: (string | null)[] = Array(firstWd).fill(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push(
+      `${vy}-${String(vm + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`
+    );
+  }
+
+  function toggle(ds: string) {
+    if (ds < todayStr) return;
+    onChange(
+      selected.includes(ds)
+        ? selected.filter((x) => x !== ds)
+        : [...selected, ds].sort()
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 p-3 select-none">
+      <div className="flex items-center justify-between mb-2">
+        <button type="button" onClick={prevMonth} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500">
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <span className="text-sm font-medium text-slate-700">
+          {MONTH_NAMES[vm]} {vy}
+        </span>
+        <button type="button" onClick={nextMonth} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500">
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="grid grid-cols-7 mb-1">
+        {["Sen","Sel","Rab","Kam","Jum","Sab","Min"].map((d) => (
+          <div key={d} className="text-center text-[10px] font-medium text-slate-400 py-0.5">{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-0.5">
+        {cells.map((ds, i) => {
+          if (!ds) return <div key={i} />;
+          const past = ds < todayStr;
+          const sel = selected.includes(ds);
+          const isSun = new Date(`${ds}T12:00:00Z`).getUTCDay() === 0;
+          const isToday = ds === todayStr;
+          return (
+            <button
+              key={ds}
+              type="button"
+              disabled={past}
+              onClick={() => toggle(ds)}
+              className={cn(
+                "flex h-7 w-full items-center justify-center rounded-lg text-xs transition-colors",
+                past
+                  ? "text-slate-300 cursor-not-allowed"
+                  : sel
+                    ? "bg-[#D6194B] text-white font-semibold"
+                    : isToday
+                      ? "border border-[#D6194B] text-[#D6194B] font-semibold hover:bg-[#FDE8EE]"
+                      : isSun
+                        ? "text-slate-400 hover:bg-slate-100"
+                        : "text-slate-700 hover:bg-slate-100"
+              )}
+            >
+              {Number(ds.slice(-2))}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const emptyForm = {
   type: "ANNUAL" as string,
+  dateMode: "one" as DateMode,
   startDate: "",
   endDate: "",
   isHalfDay: false,
   halfDaySession: "MORNING" as "MORNING" | "AFTERNOON",
+  customDates: [] as string[],
   reason: "",
   task: "",
   substituteId: "",
@@ -227,13 +334,33 @@ export function LeaveForm() {
   // ─── computed duration ──────────────────────────────────────────────────────
 
   const durDays: number | null = (() => {
-    if (form.isHalfDay) return 0.5;
-    if (!form.startDate || !form.endDate) return null;
-    const s = new Date(form.startDate);
-    const e = new Date(form.endDate);
-    if (isNaN(s.getTime()) || isNaN(e.getTime()) || e < s) return null;
-    return workdayCount(s, e);
+    if (form.dateMode === "half") return 0.5;
+    if (form.dateMode === "one") return form.startDate ? 1 : null;
+    if (form.dateMode === "range") {
+      if (!form.startDate || !form.endDate) return null;
+      const s = new Date(form.startDate);
+      const e = new Date(form.endDate);
+      if (isNaN(s.getTime()) || isNaN(e.getTime()) || e < s) return null;
+      return workdayCount(s, e);
+    }
+    // custom
+    return form.customDates.length > 0 ? form.customDates.length : null;
   })();
+
+  function getDateRange(): { startDate: string; endDate: string } {
+    if (form.dateMode === "half" || form.dateMode === "one") {
+      return { startDate: form.startDate, endDate: form.startDate };
+    }
+    if (form.dateMode === "range") {
+      return { startDate: form.startDate, endDate: form.endDate };
+    }
+    // custom
+    const sorted = [...form.customDates].sort();
+    return {
+      startDate: sorted[0] ?? "",
+      endDate: sorted[sorted.length - 1] ?? "",
+    };
+  }
 
   const remainingAfter: number | null =
     form.type === "ANNUAL" && balance !== null && durDays !== null
@@ -243,6 +370,8 @@ export function LeaveForm() {
   // ─── OTP helpers ───────────────────────────────────────────────────────────
 
   async function sendOtpTo(recipientId: string, role: "substitute" | "manager"): Promise<SentInfo | null> {
+    const { startDate, endDate } = getDateRange();
+    const isHalfDay = form.dateMode === "half";
     const res = await fetch("/api/leave/otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -250,10 +379,10 @@ export function LeaveForm() {
         recipientId,
         role,
         type: form.type,
-        startDate: form.startDate,
-        endDate: form.endDate,
-        isHalfDay: form.isHalfDay,
-        halfDaySession: form.isHalfDay ? form.halfDaySession : undefined,
+        startDate,
+        endDate,
+        isHalfDay,
+        halfDaySession: isHalfDay ? form.halfDaySession : undefined,
         reason: form.reason,
         task: form.task,
       }),
@@ -284,8 +413,14 @@ export function LeaveForm() {
 
   function validate(): FieldErrors {
     const errs: FieldErrors = {};
-    if (!form.startDate) errs.startDate = "Pilih tanggal mulai.";
-    if (!form.isHalfDay && !form.endDate) errs.endDate = "Pilih tanggal selesai.";
+    if (form.dateMode === "half" || form.dateMode === "one") {
+      if (!form.startDate) errs.startDate = "Pilih tanggal.";
+    } else if (form.dateMode === "range") {
+      if (!form.startDate) errs.startDate = "Pilih tanggal mulai.";
+      if (!form.endDate) errs.endDate = "Pilih tanggal selesai.";
+    } else {
+      if (form.customDates.length === 0) errs.customDates = "Pilih minimal satu tanggal.";
+    }
     if (!form.substituteId) errs.substituteId = "Pilih karyawan pengganti.";
     if (!form.managerId) errs.managerId = "Pilih Manager/Lead.";
     if (form.managerId && form.managerId === form.substituteId)
@@ -339,11 +474,22 @@ export function LeaveForm() {
     setSubmitting(true);
     setOtpError(null);
     try {
+      const { startDate, endDate } = getDateRange();
+      const isHalfDay = form.dateMode === "half";
       const res = await fetch("/api/leave", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...form,
+          type: form.type,
+          startDate,
+          endDate,
+          isHalfDay,
+          halfDaySession: isHalfDay ? form.halfDaySession : undefined,
+          customDates: form.dateMode === "custom" ? form.customDates : undefined,
+          reason: form.reason,
+          task: form.task,
+          substituteId: form.substituteId,
+          managerId: form.managerId,
           substituteCode: codeSub.replace(/ /g, ""),
           managerCode: codeMgr.replace(/ /g, ""),
         }),
@@ -353,9 +499,19 @@ export function LeaveForm() {
 
       const typeName = LEAVE_TYPE_OPTIONS[form.type] ?? form.type;
       const mgr = people.find((p) => p.id === form.managerId);
-      const dateLabel = form.isHalfDay || form.startDate === form.endDate
-        ? form.startDate
-        : `${form.startDate} – ${form.endDate}`;
+      let dateLabel: string;
+      if (form.dateMode === "half" || form.dateMode === "one") {
+        dateLabel = form.startDate;
+      } else if (form.dateMode === "range") {
+        dateLabel = form.startDate === form.endDate
+          ? form.startDate
+          : `${form.startDate} – ${form.endDate}`;
+      } else {
+        const sorted = [...form.customDates].sort();
+        dateLabel = sorted.length <= 3
+          ? sorted.join(", ")
+          : `${sorted[0]}, ${sorted[1]}, ... (+${sorted.length - 2} hari)`;
+      }
       setSuccessLeave({
         days: durDays ?? 0,
         typeName,
@@ -480,61 +636,49 @@ export function LeaveForm() {
                 </div>
               </div>
 
-              {/* Toggle setengah hari */}
-              <div className="rounded-xl border-[1.5px] border-slate-200 p-3.5">
-                <label className="flex cursor-pointer items-center gap-3">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded accent-brand-500"
-                    checked={form.isHalfDay}
-                    onChange={(e) =>
-                      setForm((p) => ({
-                        ...p,
-                        isHalfDay: e.target.checked,
-                        endDate: e.target.checked ? p.startDate : p.endDate,
-                      }))
-                    }
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-slate-700">Cuti Setengah Hari</p>
-                    <p className="text-xs text-slate-400">Hanya menghitung 0,5 hari dari saldo</p>
-                  </div>
-                </label>
-                {form.isHalfDay && (
-                  <div className="mt-3 flex gap-4 pl-7">
-                    {(["MORNING", "AFTERNOON"] as const).map((s) => (
-                      <label key={s} className="flex cursor-pointer items-center gap-2 text-sm">
-                        <input
-                          type="radio"
-                          checked={form.halfDaySession === s}
-                          onChange={() => setForm((p) => ({ ...p, halfDaySession: s }))}
-                          className="accent-brand-500"
-                        />
-                        {s === "MORNING" ? "Pagi (08:00–12:00)" : "Siang (13:00–17:00)"}
-                      </label>
-                    ))}
-                  </div>
-                )}
+              {/* Mode tanggal — 4 pilihan */}
+              <div>
+                <Label className="mb-2 block">Durasi Cuti</Label>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {DATE_MODES.map((m) => (
+                    <button
+                      key={m.key}
+                      type="button"
+                      onClick={() =>
+                        setForm((p) => ({
+                          ...p,
+                          dateMode: m.key,
+                          isHalfDay: m.key === "half",
+                          startDate: m.key === "custom" ? "" : p.startDate,
+                          endDate: m.key === "half" || m.key === "one" ? p.startDate : p.endDate,
+                          customDates: [],
+                        }))
+                      }
+                      className={cn(
+                        "rounded-xl border-[1.5px] p-3 text-left transition-colors outline-none",
+                        "focus-visible:ring-4 focus-visible:ring-brand-500/20",
+                        form.dateMode === m.key
+                          ? "border-brand-500 bg-brand-50 ring-4 ring-brand-500/10"
+                          : "border-slate-200 hover:border-slate-300"
+                      )}
+                    >
+                      <p className="text-sm font-semibold text-slate-800">{m.label}</p>
+                      <p className="mt-0.5 text-[11px] text-slate-400 leading-tight">{m.desc}</p>
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* Tanggal */}
-              <div
-                ref={setFieldRef("startDate")}
-                className={cn("grid gap-3", form.isHalfDay ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2")}
-              >
-                <div className="space-y-1.5">
-                  <Label>{form.isHalfDay ? "Tanggal *" : "Tanggal Mulai *"}</Label>
+              {/* Input tanggal — berubah sesuai mode */}
+              {(form.dateMode === "half" || form.dateMode === "one") && (
+                <div ref={setFieldRef("startDate")} className="space-y-1.5">
+                  <Label>Tanggal *</Label>
                   <input
                     type="date"
                     min={new Date().toISOString().slice(0, 10)}
                     value={form.startDate}
                     onChange={(e) => {
-                      const v = e.target.value;
-                      setForm((p) => ({
-                        ...p,
-                        startDate: v,
-                        endDate: p.isHalfDay ? v : (p.endDate && p.endDate < v ? v : p.endDate),
-                      }));
+                      setForm((p) => ({ ...p, startDate: e.target.value, endDate: e.target.value }));
                       clearErr("startDate");
                     }}
                     className={cn(
@@ -544,8 +688,52 @@ export function LeaveForm() {
                     )}
                   />
                   <FieldError name="startDate" />
+                  {form.dateMode === "half" && form.startDate && (
+                    <div className="flex gap-4 pt-1">
+                      {(["MORNING", "AFTERNOON"] as const).map((s) => (
+                        <label key={s} className="flex cursor-pointer items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            checked={form.halfDaySession === s}
+                            onChange={() => setForm((p) => ({ ...p, halfDaySession: s }))}
+                            className="accent-brand-500"
+                          />
+                          {s === "MORNING" ? "Pagi (08:00–12:00)" : "Siang (13:00–17:00)"}
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                {!form.isHalfDay && (
+              )}
+
+              {form.dateMode === "range" && (
+                <div
+                  ref={setFieldRef("startDate")}
+                  className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+                >
+                  <div className="space-y-1.5">
+                    <Label>Tanggal Mulai *</Label>
+                    <input
+                      type="date"
+                      min={new Date().toISOString().slice(0, 10)}
+                      value={form.startDate}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setForm((p) => ({
+                          ...p,
+                          startDate: v,
+                          endDate: p.endDate && p.endDate < v ? v : p.endDate,
+                        }));
+                        clearErr("startDate");
+                      }}
+                      className={cn(
+                        "h-12 w-full rounded-xl border-[1.5px] bg-white px-3.5 text-sm outline-none",
+                        "transition-colors focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15",
+                        fieldErrors.startDate ? "border-red-400" : "border-slate-200"
+                      )}
+                    />
+                    <FieldError name="startDate" />
+                  </div>
                   <div className="space-y-1.5" ref={setFieldRef("endDate")}>
                     <Label>Tanggal Selesai *</Label>
                     <input
@@ -564,8 +752,29 @@ export function LeaveForm() {
                     />
                     <FieldError name="endDate" />
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+
+              {form.dateMode === "custom" && (
+                <div ref={setFieldRef("customDates")} className="space-y-2">
+                  <Label>Pilih Hari *</Label>
+                  <MiniCalendar
+                    selected={form.customDates}
+                    onChange={(dates) => {
+                      setForm((p) => ({ ...p, customDates: dates }));
+                      clearErr("customDates");
+                    }}
+                  />
+                  {form.customDates.length > 0 && (
+                    <p className="text-xs text-slate-500">
+                      {form.customDates.length} hari dipilih:{" "}
+                      {form.customDates.slice(0, 3).join(", ")}
+                      {form.customDates.length > 3 && ` (+${form.customDates.length - 3} lagi)`}
+                    </p>
+                  )}
+                  <FieldError name="customDates" />
+                </div>
+              )}
 
               {/* Ringkasan durasi */}
               {durDays !== null && (
@@ -579,7 +788,7 @@ export function LeaveForm() {
                     "font-medium",
                     remainingAfter !== null && remainingAfter < 0 ? "text-amber-700" : "text-emerald-700"
                   )}>
-                    {form.isHalfDay ? "0,5 hari kerja" : `${durDays} hari kerja`}
+                    {durDays === 0.5 ? "0,5 hari kerja" : `${durDays} hari kerja`}
                     {form.type === "ANNUAL" && remainingAfter !== null && (
                       <>
                         {" · "}
