@@ -96,6 +96,21 @@ export function formatLeaveDays(
   return `${days} hari`;
 }
 
+/** Hari kerja (Senin–Jumat) antara dua tanggal, inklusif. */
+export function workdayCount(start: Date, end: Date): number {
+  const a = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const b = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  if (b < a) return 0;
+  let count = 0;
+  const cur = new Date(a);
+  while (cur <= b) {
+    const d = cur.getDay();
+    if (d !== 0 && d !== 6) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+
 /** Masa kerja (tahun, desimal 1) dari tanggal masuk. */
 export function tenureYears(value: Date | string | null | undefined): number | null {
   if (!value) return null;
