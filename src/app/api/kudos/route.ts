@@ -6,37 +6,41 @@ import { handleApiError, ok } from "@/lib/api";
 import {
   addPoint,
   getKudosQuota,
+  getPointsThisYear,
   KUDOS_POINTS,
   KUDOS_MSG_MAX,
 } from "@/lib/gamification";
 
-// GET: Kudos Wall — kudos terbaru satu company.
+// GET: Kudos Wall — kudos terbaru satu company + meta (quota & poin).
 export async function GET() {
   try {
     const user = await requireUser();
-    const rows = await prisma.kudos.findMany({
-      where: { sender: { companyId: user.companyId } },
-      orderBy: { createdAt: "desc" },
-      take: 40,
-      include: {
-        sender: { select: { id: true, name: true, photoDataUrl: true, departmentName: true } },
-        recipient: {
-          select: { id: true, name: true, photoDataUrl: true, departmentName: true },
+    const [rows, quota, myPoints] = await Promise.all([
+      prisma.kudos.findMany({
+        where: { sender: { companyId: user.companyId } },
+        orderBy: { createdAt: "desc" },
+        take: 40,
+        include: {
+          sender: { select: { id: true, name: true, photoDataUrl: true, departmentName: true } },
+          recipient: { select: { id: true, name: true, photoDataUrl: true, departmentName: true } },
+          likes: { where: { employeeId: user.id }, select: { id: true } },
+          _count: { select: { likes: true, comments: true } },
+          comments: {
+            orderBy: { createdAt: "asc" },
+            take: 20,
+            include: { employee: { select: { name: true, photoDataUrl: true } } },
+          },
         },
-        likes: { where: { employeeId: user.id }, select: { id: true } },
-        _count: { select: { likes: true, comments: true } },
-        comments: {
-          orderBy: { createdAt: "asc" },
-          take: 20,
-          include: { employee: { select: { name: true, photoDataUrl: true } } },
-        },
-      },
-    });
+      }),
+      getKudosQuota(user.id),
+      getPointsThisYear(user.id),
+    ]);
 
-    return ok(
-      rows.map((k) => ({
+    return ok({
+      items: rows.map((k) => ({
         id: k.id,
         message: k.message,
+        category: k.category ?? null,
         createdAt: k.createdAt.toISOString(),
         sender: k.sender,
         recipient: k.recipient,
@@ -50,8 +54,14 @@ export async function GET() {
           name: c.employee.name,
           photoDataUrl: c.employee.photoDataUrl,
         })),
-      }))
-    );
+      })),
+      meta: {
+        quota: quota.quota,
+        used: quota.used,
+        remaining: quota.remaining,
+        myPoints,
+      },
+    });
   } catch (e) {
     return handleApiError(e);
   }
@@ -59,7 +69,8 @@ export async function GET() {
 
 const sendSchema = z.object({
   recipientId: z.string().min(1),
-  message: z.string().trim().min(1, "Tulis pesan apresiasi").max(KUDOS_MSG_MAX),
+  message: z.string().trim().min(3, "Tulis pesan apresiasi (min. 3 karakter)").max(KUDOS_MSG_MAX),
+  category: z.string().max(50).optional(),
 });
 
 // POST: kirim kudos — kurangi kuota harian; +25 pengirim & +25 penerima.
@@ -88,22 +99,11 @@ export async function POST(req: NextRequest) {
           senderId: user.id,
           recipientId: recipient.id,
           message: data.message,
+          category: data.category ?? null,
         },
       });
-      await addPoint(
-        tx,
-        user.id,
-        "KUDOS_SENT",
-        KUDOS_POINTS,
-        `Kirim Kudos ke ${recipient.name}`
-      );
-      await addPoint(
-        tx,
-        recipient.id,
-        "KUDOS_RECEIVED",
-        KUDOS_POINTS,
-        `Kudos dari ${user.name ?? "rekan"}: "${data.message}"`
-      );
+      await addPoint(tx, user.id, "KUDOS_SENT", KUDOS_POINTS, `Kirim Kudos ke ${recipient.name}`);
+      await addPoint(tx, recipient.id, "KUDOS_RECEIVED", KUDOS_POINTS, `Kudos dari ${user.name ?? "rekan"}: "${data.message}"`);
       return k;
     });
 

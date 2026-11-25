@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kudos Wall</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F7F5F7;--card:#fff;--ink:#1B1F2A;--mute:#5F6475;--line:#E6E2E6;--soft:#F4F1F4;--brand:#D6194B;--brand-d:#B01239;--brand-t:#FDE8EE;--ok:#16794C;--ok-t:#E3F5EC;--warn:#B45309;--warn-t:#FEF1DC;--err:#C0262D;--abs:80%;--abl:90%;--afs:60%;--afl:32%;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14151A;--card:#1E2028;--ink:#F2F1F4;--mute:#A3A6B5;--line:#32343F;--soft:#272A33;--brand:#F0486F;--brand-d:#D6194B;--brand-t:#3A1B26;--ok:#4CC38A;--ok-t:#17301F;--warn:#F5A94B;--warn-t:#33260F;--err:#FF7B80;--abs:35%;--abl:22%;--afs:80%;--afl:80%}}
+:root[data-theme="dark"]{--bg:#14151A;--card:#1E2028;--ink:#F2F1F4;--mute:#A3A6B5;--line:#32343F;--soft:#272A33;--brand:#F0486F;--brand-d:#D6194B;--brand-t:#3A1B26;--ok:#4CC38A;--ok-t:#17301F;--warn:#F5A94B;--warn-t:#33260F;--err:#FF7B80;--abs:35%;--abl:22%;--afs:80%;--afl:80%}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:500 14.5px/1.5 "Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",sans-serif;padding:24px}
+.w{max-width:1040px;margin:0 auto}
+.top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap;margin-bottom:18px}
+h1{font-size:27px;margin:0;font-weight:800;letter-spacing:-.02em}
+h2{font-size:15px;margin:0 0 10px;font-weight:800}
+.sub{color:var(--mute);margin:2px 0 0}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.pt{display:flex;gap:6px;align-items:center;padding:7px 13px;border-radius:20px;font-weight:700;font-size:13px;background:var(--warn-t);color:var(--warn)}.pt.k{background:var(--brand-t);color:var(--brand)}
+.bump{animation:bump .5s}@keyframes bump{40%{transform:scale(1.25)}}
+.lay{display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:0 6px 22px rgba(30,10,25,.05);padding:16px 18px;margin-bottom:14px}
+.av{--h:340;width:44px;height:44px;border-radius:50%;background:hsl(var(--h) var(--abs) var(--abl));color:hsl(var(--h) var(--afs) var(--afl));display:grid;place-items:center;font-weight:800;font-size:14px;flex:none}
+.av.s{width:30px;height:30px;font-size:11.5px}
+.btn{height:44px;padding:0 20px;border-radius:12px;font:700 14px inherit;font-family:inherit;cursor:pointer;border:1.5px solid var(--line);background:var(--card);color:var(--ink);white-space:nowrap;transition:background .15s,transform .1s}
+.btn:active{transform:scale(.97)}.btn.p{background:var(--brand);border-color:var(--brand);color:#fff}.btn.p:hover{background:var(--brand-d)}.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn:focus-visible,.bar:focus-visible,.in:focus-visible,.c:focus-visible,.tab:focus-visible,.ac:focus-visible,.opt:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.bar{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:1.5px solid var(--line);border-radius:14px;background:var(--soft);padding:10px 14px;font:inherit;font-family:inherit;color:var(--mute);cursor:pointer;transition:border-color .15s}
+.bar:hover{border-color:var(--brand)}.bar:disabled{cursor:not-allowed;opacity:.7}
+[hidden]{display:none!important}
+.bar span:not(.av){flex:1}.bar b{font-size:12px;color:var(--brand);background:var(--brand-t);padding:3px 10px;border-radius:20px;white-space:nowrap}
+.cp{display:none;animation:in .25s}.card.open .cp{display:block}.card.open .bar{display:none}
+@keyframes in{from{opacity:0;transform:translateY(-6px)}}
+.l{display:block;font-weight:700;font-size:13.5px;margin:0 0 6px}
+.f{margin-bottom:14px}
+.in{width:100%;height:46px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:inherit;font-family:inherit;padding:0 14px;outline:none;transition:border-color .15s,box-shadow .15s}
+textarea.in{height:auto;min-height:84px;padding:11px 14px;resize:vertical}
+.in:focus{border-color:var(--brand);box-shadow:0 0 0 4px var(--brand-t)}
+.f.err .in,.f.err .pk{border-color:var(--err)}
+.msg{color:var(--err);font-size:12.5px;font-weight:600;display:none;margin-top:5px}.f.err .msg{display:block}
+.pk{position:relative}
+.ls{position:absolute;left:0;right:0;top:52px;z-index:5;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 14px 40px rgba(0,0,0,.18);max-height:240px;overflow-y:auto;padding:6px;display:none}
+.ls.on{display:block}
+.opt{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:10px;cursor:pointer}
+.opt.on,.opt:hover{background:var(--soft)}.opt small{color:var(--mute);display:block;font-size:12px;line-height:1.2}
+.opt .av{width:32px;height:32px;font-size:12px}
+.sel{display:flex;gap:10px;align-items:center;border:1.5px solid var(--line);border-radius:12px;padding:6px 8px 6px 10px;background:var(--soft)}
+.sel b{flex:1}.sel small{color:var(--mute);font-weight:500;margin-left:6px}
+.x{border:0;background:none;color:var(--mute);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:18px}.x:hover{background:var(--card)}
+.row{display:flex;gap:6px;flex-wrap:wrap}
+.c{border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:20px;padding:5px 12px;font:700 12.5px inherit;font-family:inherit;cursor:pointer;transition:all .12s}
+.c:hover{border-color:var(--brand)}.c.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.cnt{font-size:12px;color:var(--mute);text-align:right;margin-top:4px}
+.fo{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px}
+.fo .hint{font-size:12.5px;color:var(--mute)}
+.tabs{display:flex;gap:6px;background:var(--soft);padding:4px;border-radius:13px;width:max-content;max-width:100%;overflow-x:auto;margin-bottom:14px}
+.tab{border:0;background:transparent;color:var(--mute);font:700 13.5px inherit;font-family:inherit;padding:8px 14px;border-radius:10px;cursor:pointer;white-space:nowrap}
+.tab span{margin-left:5px;font-size:12px;background:var(--card);padding:1px 7px;border-radius:20px}
+.tab.on{background:var(--card);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.12)}
+.k-c{animation:in .35s}.k-c.new{box-shadow:0 0 0 3px var(--brand-t),0 6px 22px rgba(214,25,75,.18)}
+.hd{display:flex;align-items:center;gap:10px}
+.who{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+.ar{color:var(--brand);font-weight:800}
+.nm b{display:block;line-height:1.25}.nm small{color:var(--mute);font-size:12px}
+.tm{margin-left:auto;color:var(--mute);font-size:12.5px;white-space:nowrap}
+.q{margin:12px 0 10px;background:linear-gradient(120deg,var(--brand-t),transparent 140%);border-radius:14px;padding:14px 16px;font-size:16.5px;font-weight:600;line-height:1.4;position:relative}
+.q:before{content:"“";position:absolute;left:8px;top:-4px;font-size:34px;color:var(--brand);opacity:.5}
+.q span{padding-left:6px}
+.tg{display:inline-block;font-size:11.5px;font-weight:700;color:var(--brand);background:var(--brand-t);padding:2px 10px;border-radius:20px;margin-right:8px}
+.act{display:flex;gap:6px;align-items:center}
+.ab{display:flex;gap:6px;align-items:center;border:0;background:none;color:var(--mute);font:700 13px inherit;font-family:inherit;padding:6px 10px;border-radius:10px;cursor:pointer}
+.ab:hover{background:var(--soft)}.ab.on{color:var(--brand)}.ab.on svg{fill:currentColor}.ab.pop svg{animation:bump .4s}
+.cm{display:none;border-top:1px solid var(--line);margin-top:10px;padding-top:12px}.k-c.oc .cm{display:block}
+.cmi{display:flex;gap:10px;margin-bottom:10px}.cmi div{background:var(--soft);border-radius:12px;padding:7px 12px;flex:1;font-size:13.5px}.cmi b{font-size:13px;display:block}.cmi small{color:var(--mute);font-weight:500}
+.cf{display:flex;gap:8px}.cf .in{height:42px}.cf .btn{height:42px;padding:0 14px}
+.em{text-align:center;color:var(--mute);padding:36px 10px}.em b{display:block;color:var(--ink);font-size:16px}
+.st{display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:center}
+.st b{display:block;font-size:26px;font-weight:800;line-height:1.1;letter-spacing:-.02em}.st small{color:var(--mute);font-size:12.5px}
+.st div{background:var(--soft);border-radius:12px;padding:10px}
+.dots{display:flex;gap:6px;margin:8px 0 4px}.dots i{width:100%;height:8px;border-radius:5px;background:var(--brand)}.dots i.o{background:var(--line)}
+.tp{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)}.tp:first-of-type{border-top:0}.tp .av{width:34px;height:34px;font-size:12px}.tp b{flex:1;font-size:13.5px}.tp small{color:var(--mute);font-weight:700}
+.ts{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translate(-50%,30px);background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:12px;font-weight:700;opacity:0;transition:all .3s;z-index:30;pointer-events:none;max-width:calc(100% - 32px)}
+.ts.on{opacity:1;transform:translate(-50%,0)}
+@media (max-width:860px){body{padding:14px}.lay{grid-template-columns:1fr}.side{order:-1}.q{font-size:15.5px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="w">
+ <div class="top"><div><h1>Kudos Wall</h1><p class="sub">Beri apresiasi ke rekan kerja. Tiap kirim kudos: +25 poin untukmu dan penerima.</p></div>
+  <div class="chips"><span class="pt"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7 7 .6-5.3 4.7 1.6 7.2L12 17.8 5.7 21.5l1.6-7.2L2 9.6 9 9z"/></svg><span id="pn">50</span> poin</span><span class="pt k" title="Jatah kudos yang tersisa bulan ini"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 21s-8-5-8-11a4.5 4.5 0 018-2.8A4.5 4.5 0 0120 10c0 6-8 11-8 11z"/></svg><span id="kn">5</span>/5 kudos</span></div></div>
+
+ <div class="lay">
+  <div>
+   <section class="card" id="cc">
+    <button class="bar" id="bar"><span class="av s" id="mav"></span><span id="bt">Tulis apresiasi untuk rekan kerja…</span><b id="bq">Sisa 5 kudos</b></button>
+    <div class="cp">
+     <div class="f" id="fr"><label class="l" for="ri">Untuk siapa?</label>
+      <div class="pk" id="pk"><input class="in" id="ri" placeholder="Cari nama atau divisi" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="ls"><div class="ls" id="ls" role="listbox"></div></div>
+      <div class="sel" id="sl" hidden></div><div class="msg">Pilih rekan kerja yang ingin diapresiasi.</div></div>
+     <div class="f"><label class="l">Apa yang membuatnya berkesan? <span style="font-weight:500;color:var(--mute)">(opsional)</span></label><div class="row" id="cats"></div></div>
+     <div class="f" id="fm"><label class="l" for="mi">Pesan apresiasi</label><textarea class="in" id="mi" maxlength="50" placeholder="Tulis pesan singkat dan tulus"></textarea><div class="cnt"><span id="mc">0</span>/50</div>
+      <div class="row" id="qp" style="margin-top:4px"></div><div class="msg">Tulis pesan apresiasi (minimal 3 karakter).</div></div>
+     <div class="fo"><span class="hint">+25 poin untuk Anda dan penerima</span><div class="row"><button class="btn" id="bc">Batal</button><button class="btn p" id="bs">Kirim kudos</button></div></div>
+    </div>
+   </section>
+   <div class="tabs" id="tabs" role="tablist"></div>
+   <div id="fd"></div>
+  </div>
+  <aside class="side">
+   <section class="card"><h2>Kudos saya</h2><div class="st"><div><b id="sr">0</b><small>Diterima</small></div><div><b id="ss">0</b><small>Dikirim</small></div></div>
+    <div style="margin-top:14px;font-size:13px;font-weight:700">Jatah kudos bulan ini</div><div class="dots" id="dots"></div><div class="sub" style="font-size:12.5px;margin:0" id="rs">Reset setiap awal bulan.</div></section>
+   <section class="card"><h2>Sering diapresiasi bulan ini</h2><div id="tp"></div></section>
+  </aside>
+ </div>
+</div>
+<div class="ts" id="ts" role="status"></div>
+
+<script>
+const $=i=>document.getElementById(i),E=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const ME="Siti Holifah",TODAY=new Date("2026-11-24T10:00:00");
+const PPL=[["Rina Wulandari","Finance"],["Dimas Pratama","Finance"],["Sinta Maharani","Finance"],["Muhammad Akbar Ridha","Ecommerce"],["Nurfitriana Candrasari","Ecommerce"],["Aisyah Dewi Fatichatuz Zhaqiya","Ecommerce"],["Ananda Yulia Ferdaus","Ecommerce"],["Faradilla Novia Ramadhani","Ecommerce"],["Deny Setiawan","HR"],["Rahmad Bagus Subekti","HR"],["Samuel Deddy Djatmiko","Manajemen"]];
+const dep=n=>(PPL.find(p=>p[0]===n)||[0,n===ME?"HR":""])[1];
+const CATS=["Kerja sama","Inisiatif","Teliti","Cepat tanggap","Inspiratif"],QP=["Terima kasih sudah membantu!","Kerja bagus minggu ini!","Kolaborasinya menyenangkan","Selalu cepat tanggap","Hasil kerjamu rapi sekali"];
+const ini=n=>n.split(" ").map(x=>x[0]).slice(0,2).join("").toUpperCase();
+const hue=n=>{let h=0;for(const c of n)h=(h*31+c.charCodeAt(0))%360;return h};
+const av=(n,c="")=>`<span class="av ${c}" style="--h:${hue(n)}" aria-hidden="true">${ini(n)}</span>`;
+let id=1;const mk=(f,t,m,c,d,l,cm)=>({id:id++,f,t,m,c,d,likes:l||0,liked:0,cm:cm||[]});
+let K=[
+ mk("Rina Wulandari",ME,"Makasih sudah bantu closing bulanan!","Kerja sama","2026-11-21",3,[["Dimas Pratama","Setuju, top banget!","2 hari lalu"]]),
+ mk("Dimas Pratama","Rina Wulandari","Selalu cepat tanggap kalau dibutuhin","Cepat tanggap","2026-11-20",2),
+ mk("Sinta Maharani","Rina Wulandari","Terima kasih sudah ajarin laporan baru","Kerja sama","2026-11-19",1),
+ mk(ME,"Dimas Pratama","Dokumennya rapi banget","Teliti","2026-11-18",1),
+ mk("Aisyah Dewi Fatichatuz Zhaqiya","Muhammad Akbar Ridha","I Lope u","","2026-10-15"),
+ mk("Ananda Yulia Ferdaus","Nurfitriana Candrasari","Lorem Ipsum","","2026-10-02"),
+ mk("Deny Setiawan","Rahmad Bagus Subekti","Sistem Hrisnya oke","Inisiatif","2026-09-15",4)];
+let pts=50,kd=5,tab="all",sel=null,cat="",hi=0,open={};
+const MN=["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+const rel=s=>{const d=Math.round((new Date(TODAY.toDateString())-new Date(s+"T00:00"))/864e5);if(d<=0)return"Hari ini";if(d===1)return"Kemarin";if(d<7)return d+" hari lalu";const p=s.split("-");return +p[2]+" "+MN[+p[1]-1]+" "+p[0]};
+function toast(t){const o=$("ts");o.textContent=t;o.classList.add("on");clearTimeout(toast.t);toast.t=setTimeout(()=>o.classList.remove("on"),3200)}
+$("mav").outerHTML=av(ME,"s").replace("<span","<span id=\"mav\"");
+$("cats").innerHTML=CATS.map(c=>`<button type="button" class="c" data-c="${c}" aria-pressed="false">${c}</button>`).join("");
+$("qp").innerHTML=QP.map(q=>`<button type="button" class="c" data-q="${q}">${q}</button>`).join("");
+function stats(){
+ $("pn").textContent=pts;$("kn").textContent=kd;$("bq").textContent="Sisa "+kd+" kudos";
+ $("bar").disabled=kd<1;$("bt").textContent=kd<1?"Jatah kudos bulan ini habis. Reset 1 Des.":"Tulis apresiasi untuk rekan kerja…";
+ $("dots").innerHTML=Array.from({length:5},(_,i)=>`<i class="${i<kd?"":"o"}"></i>`).join("");
+ $("sr").textContent=K.filter(k=>k.t===ME).length;$("ss").textContent=K.filter(k=>k.f===ME).length;
+ const c={};K.filter(k=>k.d.startsWith("2026-11")).forEach(k=>c[k.t]=(c[k.t]||0)+1);
+ const t=Object.entries(c).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,3);
+ $("tp").innerHTML=t.length?t.map(([n,v])=>`<div class="tp">${av(n)}<b>${E(n)}${n===ME?" (Anda)":""}</b><small>${v}×</small></div>`).join(""):'<div class="sub">Belum ada kudos bulan ini.</div>'}
+function feed(){
+ const all=K.slice().sort((a,b)=>b.d.localeCompare(a.d)||b.id-a.id),n={all:all.length,me:all.filter(k=>k.t===ME).length,mine:all.filter(k=>k.f===ME).length};
+ $("tabs").innerHTML=[["all","Semua"],["me","Untuk saya"],["mine","Dari saya"]].map(([k,l])=>`<button class="tab ${tab===k?"on":""}" role="tab" aria-selected="${tab===k}" data-k="${k}">${l}<span>${n[k]}</span></button>`).join("");
+ const L=all.filter(k=>tab==="all"||(tab==="me"&&k.t===ME)||(tab==="mine"&&k.f===ME));
+ $("fd").innerHTML=L.length?L.map(k=>`<article class="card k-c ${k.nw?"new":""} ${open[k.id]?"oc":""}" data-id="${k.id}"><div class="hd">${av(k.f)}<span class="ar" aria-label="untuk">→</span>${av(k.t)}<div class="nm"><b>${E(k.f)} <span class="ar">→</span> ${E(k.t)}</b><small>${E(dep(k.f))}${dep(k.t)?" → "+E(dep(k.t)):""}</small></div><span class="tm">${rel(k.d)}</span></div>
+ <div class="q"><span>${k.c?`<span class="tg">${E(k.c)}</span>`:""}${E(k.m)}</span></div>
+ <div class="act"><button class="ab ${k.liked?"on":""}" data-l="${k.id}" aria-pressed="${!!k.liked}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"><path d="M12 21s-8-5-8-11a4.5 4.5 0 018-2.8A4.5 4.5 0 0120 10c0 6-8 11-8 11z"/></svg>${k.likes} Suka</button>
+ <button class="ab" data-o="${k.id}" aria-expanded="${!!open[k.id]}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"><path d="M21 12a8 8 0 01-11.6 7.1L4 20l1-4.6A8 8 0 1121 12z"/></svg>${k.cm.length} Komentar</button></div>
+ <div class="cm">${k.cm.map(c=>`<div class="cmi">${av(c[0],"s")}<div><b>${E(c[0])} <small>${E(c[2])}</small></b>${E(c[1])}</div></div>`).join("")}<div class="cf"><input class="in" data-ci="${k.id}" placeholder="Tulis komentar…" maxlength="120" aria-label="Komentar"><button class="btn p" data-cs="${k.id}" aria-label="Kirim komentar">Kirim</button></div></div></article>`).join(""):`<div class="em"><b>Belum ada kudos di sini</b>${tab==="me"?"Kudos yang diberikan rekan untuk Anda akan muncul di sini.":"Jadilah yang pertama memberi apresiasi."}</div>`}
+$("tabs").onclick=e=>{const b=e.target.closest(".tab");if(b){tab=b.dataset.k;feed()}};
+$("fd").onclick=e=>{
+ const l=e.target.closest("[data-l]");if(l){const k=K.find(x=>x.id==l.dataset.l);k.liked=k.liked?0:1;k.likes+=k.liked?1:-1;feed();const b=document.querySelector(`[data-l="${k.id}"]`);b.classList.add("pop");return}
+ const o=e.target.closest("[data-o]");if(o){open[o.dataset.o]=!open[o.dataset.o];feed();if(open[o.dataset.o])document.querySelector(`[data-ci="${o.dataset.o}"]`).focus();return}
+ const s=e.target.closest("[data-cs]");if(s)addC(s.dataset.cs)};
+$("fd").onkeydown=e=>{if(e.key==="Enter"&&e.target.dataset.ci)addC(e.target.dataset.ci)};
+function addC(i){const inp=document.querySelector(`[data-ci="${i}"]`),v=inp.value.trim();if(!v)return;K.find(x=>x.id==i).cm.push([ME,v,"Baru saja"]);feed();document.querySelector(`[data-ci="${i}"]`).focus()}
+
+function list(){const q=$("ri").value.toLowerCase(),L=PPL.filter(p=>p[0]!==ME&&(p[0]+p[1]).toLowerCase().includes(q));hi=Math.min(hi,Math.max(L.length-1,0));
+ $("ls").innerHTML=L.length?L.map((p,i)=>`<div class="opt ${i===hi?"on":""}" role="option" data-n="${E(p[0])}">${av(p[0])}<div><b>${E(p[0])}</b><small>${E(p[1])}</small></div></div>`).join(""):'<div class="sub" style="padding:10px 12px">Tidak ada rekan yang cocok.</div>';
+ $("ls").classList.add("on");$("ri").setAttribute("aria-expanded","true");$("ls")._L=L}
+function pick(n){sel=n;$("fr").classList.remove("err");$("ri").hidden=true;$("ls").classList.remove("on");$("pk").hidden=true;$("sl").hidden=false;$("sl").innerHTML=`${av(n,"s")}<b>${E(n)}<small>${E(dep(n))}</small></b><button class="x" id="sx" aria-label="Ganti penerima">×</button>`;$("sx").onclick=()=>{sel=null;$("sl").hidden=true;$("pk").hidden=false;$("ri").hidden=false;$("ri").value="";$("ri").focus()}}
+$("ri").onfocus=list;$("ri").oninput=()=>{hi=0;list()};
+$("ri").onkeydown=e=>{const L=$("ls")._L||[];if(e.key==="ArrowDown"){e.preventDefault();hi=Math.min(hi+1,L.length-1);list()}if(e.key==="ArrowUp"){e.preventDefault();hi=Math.max(hi-1,0);list()}if(e.key==="Enter"&&L[hi]){e.preventDefault();pick(L[hi][0])}if(e.key==="Escape")$("ls").classList.remove("on")};
+$("ls").onmousedown=e=>{const o=e.target.closest(".opt");if(o){e.preventDefault();pick(o.dataset.n)}};
+document.addEventListener("click",e=>{if(!e.target.closest("#pk"))$("ls").classList.remove("on")});
+$("cats").onclick=e=>{const b=e.target.closest(".c");if(!b)return;cat=cat===b.dataset.c?"":b.dataset.c;document.querySelectorAll("#cats .c").forEach(x=>{const o=x.dataset.c===cat;x.classList.toggle("on",o);x.setAttribute("aria-pressed",o)})};
+$("qp").onclick=e=>{const b=e.target.closest(".c");if(b){$("mi").value=b.dataset.q;$("mc").textContent=b.dataset.q.length;$("fm").classList.remove("err");$("mi").focus()}};
+$("mi").oninput=()=>{$("mc").textContent=$("mi").value.length;$("fm").classList.remove("err")};
+const reset=()=>{sel=null;cat="";$("cc").classList.remove("open");$("sl").hidden=true;$("pk").hidden=false;$("ri").hidden=false;$("ri").value="";$("mi").value="";$("mc").textContent=0;document.querySelectorAll("#cats .c").forEach(x=>x.classList.remove("on"));$("fr").classList.remove("err");$("fm").classList.remove("err")};
+$("bar").onclick=()=>{if(kd<1)return;$("cc").classList.add("open");$("ri").focus()};
+$("bc").onclick=reset;
+$("bs").onclick=()=>{const m=$("mi").value.trim();let ok=true;
+ if(!sel){$("fr").classList.add("err");ok=false}if(m.length<3){$("fm").classList.add("err");ok=false}if(!ok)return;
+ K.forEach(k=>k.nw=0);const k=mk(ME,sel,m,cat,"2026-11-24");k.nw=1;K.push(k);kd--;pts+=25;tab="all";
+ const to=sel;reset();stats();feed();const p=document.querySelector(".pt");p.classList.remove("bump");void p.offsetWidth;p.classList.add("bump");
+ toast("Kudos terkirim ke "+to.split(" ")[0]+"! +25 poin untukmu dan penerima.")};
+stats();feed();
+</script>
+</body>
+</html>

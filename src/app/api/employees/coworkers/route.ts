@@ -8,7 +8,7 @@ export async function GET() {
     const user = await requireUser();
     const employees = await prisma.employee.findMany({
       where: { companyId: user.companyId, isActive: true, id: { not: user.id } },
-      select: { id: true, name: true, jobTitle: true },
+      select: { id: true, name: true, jobTitle: true, departmentName: true, photoDataUrl: true },
       orderBy: { name: "asc" },
       take: 200,
     });
