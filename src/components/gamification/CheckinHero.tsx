@@ -155,13 +155,13 @@ export function CheckinHero({
         <button
           type="button"
           onClick={doCheckin}
-          disabled={busy || checkedIn}
+          disabled={busy || checkedIn || (!checkedIn && !mood)}
           className={cn(
             "mt-4 flex h-13 w-full items-center justify-center gap-2 rounded-[14px] text-base font-bold text-white transition-all",
             checkedIn
               ? "bg-emerald-600 cursor-default opacity-80"
               : "bg-[#D6194B] hover:bg-[#B01239] active:scale-[.97]",
-            (busy || checkedIn) && "cursor-not-allowed"
+            (busy || checkedIn || (!checkedIn && !mood)) && "cursor-not-allowed opacity-50"
           )}
         >
           {busy ? (

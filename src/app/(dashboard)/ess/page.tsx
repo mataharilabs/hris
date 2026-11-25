@@ -1,18 +1,14 @@
 import Link from "next/link";
-import { CalendarDays, Receipt, Plus, ChevronRight } from "lucide-react";
+import { CalendarDays, Receipt, Plus, ChevronRight, Mail, MapPin, Briefcase, Clock } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { annualLeaveBalance } from "@/lib/leave";
-import { listEmployees } from "@/lib/sso-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ess/StatusBadge";
-import { EmployeeDetails } from "@/components/employees/EmployeeDetails";
-import { OnboardingQuest } from "@/components/gamification/OnboardingQuest";
-import { AvatarUpload } from "@/components/gamification/AvatarUpload";
-import { SelfProfileEditor } from "@/components/gamification/SelfProfileEditor";
 import { ActivityFeed } from "@/components/gamification/ActivityFeed";
 import { CheckinHero } from "@/components/gamification/CheckinHero";
+import { ProfileCompletion } from "@/components/gamification/ProfileCompletion";
 import {
   EMPLOYMENT_STATUS_LABELS,
   LEAVE_TYPE_LABELS,
@@ -50,21 +46,6 @@ export default async function EssHomePage() {
     emp?.leaveAdjustment ?? 0
   );
 
-  const ssoList = emp?.ssoUserId
-    ? await listEmployees({ companyId: user.ssoCompanyId })
-    : [];
-  const ssoFull = ssoList.find((x) => x.id === emp?.ssoUserId) ?? null;
-  const full =
-    ssoFull && emp
-      ? {
-          ...ssoFull,
-          birthDate: emp.birthDate ? emp.birthDate.toISOString() : null,
-          emergencyName: emp.emergencyName,
-          emergencyRelation: emp.emergencyRelation,
-          emergencyPhone: emp.emergencyPhone,
-        }
-      : ssoFull;
-
   const [recentLeave, recentReimb] = await Promise.all([
     prisma.leaveRequest.findMany({
       where: { employeeId: user.id },
@@ -97,6 +78,16 @@ export default async function EssHomePage() {
       prisma.employee.count({ where: { companyId: user.companyId } }),
     ]);
 
+  // Profile completion data
+  const kudosSent = await prisma.kudos.count({ where: { senderId: user.id } });
+  const initialDone = {
+    birthDate: !!emp?.birthDate,
+    emergency: !!(emp?.emergencyName && emp?.emergencyRelation && emp?.emergencyPhone),
+    photo: !!emp?.photoDataUrl,
+    kudos: kudosSent > 0,
+  };
+  const isClaimed = !!emp?.onboardingClaimedAt;
+
   const firstName = (user.name ?? "Karyawan").split(" ")[0];
   const todayId = new Intl.DateTimeFormat("id-ID", {
     weekday: "long",
@@ -105,6 +96,14 @@ export default async function EssHomePage() {
     year: "numeric",
     timeZone: "Asia/Jakarta",
   }).format(new Date());
+
+  // Initials for avatar fallback
+  const initials = (user.name ?? "?")
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
 
   return (
     <div className="pb-10">
@@ -139,57 +138,74 @@ export default async function EssHomePage() {
 
       {/* 2-column grid */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_340px]">
-        {/* Left — quest + feed */}
+        {/* Left — profile completion + feed */}
         <div className="flex flex-col gap-5">
-          <OnboardingQuest />
+          {!isClaimed && (
+            <ProfileCompletion
+              initialDone={initialDone}
+              initialClaimed={false}
+              birthDate={emp?.birthDate ? emp.birthDate.toISOString() : null}
+              emergencyName={emp?.emergencyName ?? null}
+              emergencyRelation={emp?.emergencyRelation ?? null}
+              emergencyPhone={emp?.emergencyPhone ?? null}
+              photo={emp?.photoDataUrl ?? null}
+              name={user.name ?? "Karyawan"}
+            />
+          )}
           <ActivityFeed />
         </div>
 
-        {/* Right — profile + leave + reimbursement */}
+        {/* Right — profil ringkas + leave + reimbursement */}
         <div className="flex flex-col gap-5">
-          {/* Profile card */}
+          {/* Profil ringkas (read-only) */}
           <Card>
-            <CardContent className="flex flex-col gap-4 p-5">
-              <div className="flex items-start gap-4">
-                <AvatarUpload
-                  name={user.name ?? "Karyawan"}
-                  initialPhoto={emp?.photoDataUrl ?? null}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-bold text-slate-900">
-                    {user.name ?? "Karyawan"}
-                  </div>
-                  <div className="mt-0.5 truncate text-sm text-slate-500">
-                    {emp?.jobTitle ?? emp?.departmentName ?? "—"}
-                  </div>
-                  {emp?.joinDate && (
-                    <div className="mt-1 text-xs text-slate-400">
-                      {masaKerja(emp.joinDate)} masa kerja
-                    </div>
+            <CardContent className="p-5">
+              {/* Avatar */}
+              <div className="mb-4 flex flex-col items-center text-center">
+                <div className="mb-3 flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-brand-100 to-brand-200">
+                  {emp?.photoDataUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={emp.photoDataUrl}
+                      alt={user.name ?? "Foto profil"}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-2xl font-extrabold text-brand-700">
+                      {initials}
+                    </span>
                   )}
                 </div>
+                <div className="font-bold text-slate-900">{user.name ?? "—"}</div>
+                {emp?.jobTitle && (
+                  <div className="mt-0.5 text-sm text-slate-500">{emp.jobTitle}</div>
+                )}
               </div>
 
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-100 pt-3">
-                <KV label="Departemen" value={emp?.departmentName} />
-                <KV label="Lokasi" value={emp?.officeName} />
-                <KV
-                  label="Status"
-                  value={
-                    emp?.employmentStatus
-                      ? EMPLOYMENT_STATUS_LABELS[emp.employmentStatus]
-                      : null
-                  }
-                />
-                <KV label="Email" value={emp?.email} />
+              {/* KV rows */}
+              <div className="space-y-2.5 border-t border-slate-100 pt-4 text-sm">
+                {emp?.departmentName && (
+                  <ProfileRow icon={<Briefcase className="h-3.5 w-3.5" />} value={emp.departmentName} />
+                )}
+                {emp?.officeName && (
+                  <ProfileRow icon={<MapPin className="h-3.5 w-3.5" />} value={emp.officeName} />
+                )}
+                {emp?.employmentStatus && (
+                  <ProfileRow
+                    icon={<span className="h-3.5 w-3.5 text-[11px]">👤</span>}
+                    value={EMPLOYMENT_STATUS_LABELS[emp.employmentStatus] ?? emp.employmentStatus}
+                  />
+                )}
+                {emp?.joinDate && (
+                  <ProfileRow
+                    icon={<Clock className="h-3.5 w-3.5" />}
+                    value={`${masaKerja(emp.joinDate)} masa kerja`}
+                  />
+                )}
+                {emp?.email && (
+                  <ProfileRow icon={<Mail className="h-3.5 w-3.5" />} value={emp.email} truncate />
+                )}
               </div>
-
-              <SelfProfileEditor
-                birthDate={emp?.birthDate ? emp.birthDate.toISOString() : null}
-                emergencyName={emp?.emergencyName ?? null}
-                emergencyRelation={emp?.emergencyRelation ?? null}
-                emergencyPhone={emp?.emergencyPhone ?? null}
-              />
             </CardContent>
           </Card>
 
@@ -264,22 +280,23 @@ export default async function EssHomePage() {
           </Card>
         </div>
       </div>
-
-      {/* Employee details (collapsible) */}
-      <div className="mt-5">
-        <EmployeeDetails full={full} />
-      </div>
     </div>
   );
 }
 
-function KV({ label, value }: { label: string; value?: string | null }) {
+function ProfileRow({
+  icon,
+  value,
+  truncate,
+}: {
+  icon: React.ReactNode;
+  value: string;
+  truncate?: boolean;
+}) {
   return (
-    <div>
-      <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-        {label}
-      </div>
-      <div className="truncate text-sm text-slate-700">{value || "—"}</div>
+    <div className="flex items-center gap-2 text-slate-600">
+      <span className="shrink-0 text-slate-400">{icon}</span>
+      <span className={truncate ? "min-w-0 truncate text-xs" : "text-sm"}>{value}</span>
     </div>
   );
 }

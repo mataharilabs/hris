@@ -125,8 +125,8 @@ export function CheckinModal() {
             <button
               type="button"
               onClick={doCheckin}
-              disabled={busy}
-              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[#D6194B] text-base font-bold text-white hover:bg-[#B01239] disabled:opacity-60"
+              disabled={!mood || busy}
+              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[#D6194B] text-base font-bold text-white hover:bg-[#B01239] disabled:opacity-50"
             >
               {busy ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

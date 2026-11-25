@@ -3,8 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { handleApiError, ok } from "@/lib/api";
+import { addPoint, PROFILE_UPDATED_POINTS } from "@/lib/gamification";
 
-// Simpan foto profil sebagai data URL (sudah diperkecil di klien).
 const schema = z.object({ dataUrl: z.string() });
 
 export async function POST(req: NextRequest) {
@@ -19,10 +19,20 @@ export async function POST(req: NextRequest) {
       return ok({ error: "Ukuran gambar terlalu besar" }, 400);
     }
 
-    await prisma.employee.update({
-      where: { id: user.id },
-      data: { photoDataUrl: dataUrl },
+    await prisma.$transaction(async (tx) => {
+      const before = await tx.employee.findUnique({
+        where: { id: user.id },
+        select: { photoDataUrl: true },
+      });
+      await tx.employee.update({
+        where: { id: user.id },
+        data: { photoDataUrl: dataUrl },
+      });
+      if (!before?.photoDataUrl) {
+        await addPoint(tx, user.id, "PROFILE_UPDATED", PROFILE_UPDATED_POINTS, "Menambahkan foto profil");
+      }
     });
+
     return ok({ ok: true });
   } catch (e) {
     return handleApiError(e);
