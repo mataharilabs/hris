@@ -4,8 +4,10 @@ import { buttonVariants } from "@/components/ui/button";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { annualLeaveBalance } from "@/lib/leave";
+import { listEmployees } from "@/lib/sso-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ess/StatusBadge";
+import { EmployeeDetails } from "@/components/employees/EmployeeDetails";
 import { ActivityFeed } from "@/components/gamification/ActivityFeed";
 import { CheckinHero } from "@/components/gamification/CheckinHero";
 import { ProfileCompletion } from "@/components/gamification/ProfileCompletion";
@@ -40,6 +42,22 @@ export default async function EssHomePage() {
   const user = await requireUser();
 
   const emp = await prisma.employee.findUnique({ where: { id: user.id } });
+
+  const ssoList = emp?.ssoUserId
+    ? await listEmployees({ companyId: user.ssoCompanyId })
+    : [];
+  const ssoFull = ssoList.find((x) => x.id === emp?.ssoUserId) ?? null;
+  const full =
+    ssoFull && emp
+      ? {
+          ...ssoFull,
+          birthDate: emp.birthDate ? emp.birthDate.toISOString() : null,
+          emergencyName: emp.emergencyName,
+          emergencyRelation: emp.emergencyRelation,
+          emergencyPhone: emp.emergencyPhone,
+        }
+      : ssoFull;
+
   const balance = await annualLeaveBalance(
     user.id,
     emp?.leaveQuota ?? 0,
@@ -279,6 +297,11 @@ export default async function EssHomePage() {
             </div>
           </Card>
         </div>
+      </div>
+
+      {/* Detail lengkap dari SSO */}
+      <div className="mt-5">
+        <EmployeeDetails full={full} />
       </div>
     </div>
   );

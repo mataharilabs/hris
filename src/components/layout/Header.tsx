@@ -14,9 +14,10 @@ type HeaderProps = {
   role: string;
   companyName: string;
   ssoUrl: string;
+  photo?: string | null;
 };
 
-export function Header({ name, email, role, companyName, ssoUrl }: HeaderProps) {
+export function Header({ name, email, role, companyName, ssoUrl, photo }: HeaderProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -38,8 +39,13 @@ export function Header({ name, email, role, companyName, ssoUrl }: HeaderProps) 
           onClick={() => setOpen((v) => !v)}
           className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-50 cursor-pointer"
         >
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
-            {initials(name)}
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
+            {photo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photo} alt={name} className="h-full w-full object-cover" />
+            ) : (
+              initials(name)
+            )}
           </div>
           <div className="hidden text-left sm:block">
             <div className="text-sm font-medium text-slate-800">{name}</div>

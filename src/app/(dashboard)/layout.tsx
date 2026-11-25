@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireUser, AuthError } from "@/lib/session";
 import type { SessionUser } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { KudosWelcome } from "@/components/kudos/KudosWelcome";
@@ -22,6 +23,10 @@ export default async function DashboardLayout({
 
   const ssoUrl = process.env.SSO_URL ?? "https://sso.asiacommerce.net";
 
+  const empPhoto = await prisma.employee
+    .findUnique({ where: { id: user.id }, select: { photoDataUrl: true } })
+    .then((e) => e?.photoDataUrl ?? null);
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar role={user.role as NavRole} ssoUrl={ssoUrl} />
@@ -32,6 +37,7 @@ export default async function DashboardLayout({
           role={user.role}
           companyName={user.companyName}
           ssoUrl={ssoUrl}
+          photo={empPhoto}
         />
         <main className="flex-1 overflow-y-auto bg-gradient-to-b from-white via-brand-50/30 to-white p-6">
           <div className="animate-fade-up">{children}</div>
