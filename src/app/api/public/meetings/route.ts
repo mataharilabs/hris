@@ -41,7 +41,9 @@ export async function GET(req: NextRequest) {
     prisma.meetingBooking.findMany({
       where: {
         room: { companyId: company.id },
-        status: { in: ["BOOKED", "CHECKED_IN"] },
+        // Sertakan AUTO_CHECKED_IN (meeting lewat waktu yang tidak di-check-in
+        // manual) agar tetap tampil di jadwal publik sebagai "Selesai".
+        status: { in: ["BOOKED", "CHECKED_IN", "AUTO_CHECKED_IN"] },
         startAt: { gte: dayStart, lt: dayEnd },
       },
       orderBy: { startAt: "asc" },
