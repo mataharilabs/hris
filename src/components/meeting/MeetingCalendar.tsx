@@ -290,6 +290,8 @@ export function MeetingCalendar() {
   const rooms = data?.rooms ?? [];
   const bookings = data?.bookings ?? [];
   const isToday = date === todayWIB();
+  // Patokan "sekarang" untuk status blok (ikut diperbarui tiap menit via nowY).
+  const now = Date.now();
 
   // ─── render ─────────────────────────────────────────────────────────────────
 
@@ -463,23 +465,43 @@ export function MeetingCalendar() {
                     .map((b) => {
                       const y = isoToY(b.startAt);
                       const h = blockHeight(b.startAt, b.endAt);
-                      const isCheckedIn = b.status === "CHECKED_IN" || b.status === "AUTO_CHECKED_IN";
+                      // Status berdasar waktu (seperti landing SSO):
+                      // hijau = Berlangsung, abu redup = Selesai, oranye = Dipesan.
+                      const startMs = new Date(b.startAt).getTime();
+                      const endMs = new Date(b.endAt).getTime();
+                      const live = now >= startMs && now < endMs;
+                      const done = endMs <= now;
+                      const palette = live
+                        ? { box: "bg-emerald-50 border-emerald-200", bar: "bg-emerald-500" }
+                        : done
+                          ? { box: "bg-slate-100 border-slate-200", bar: "bg-slate-300" }
+                          : { box: "bg-amber-50 border-amber-200", bar: "bg-amber-500" };
+                      // Khusus HRIS: pada blok "Selesai", tampilkan jenis check-in
+                      // untuk analisa (hadir vs tidak di-check-in manual).
+                      const checkin =
+                        b.status === "AUTO_CHECKED_IN"
+                          ? { label: "Auto check-in", cls: "text-amber-600" }
+                          : b.status === "CHECKED_IN"
+                            ? { label: "Check-in", cls: "text-emerald-600" }
+                            : { label: "Tanpa check-in", cls: "text-slate-400" };
                       return (
                         <div
                           key={b.id}
                           className={cn(
-                            "absolute inset-x-1 z-20 rounded-md overflow-hidden cursor-pointer select-none transition-opacity hover:opacity-90",
-                            isCheckedIn ? "bg-emerald-50 border border-emerald-200" : "bg-amber-50 border border-amber-200",
+                            "absolute inset-x-1 z-20 rounded-md overflow-hidden cursor-pointer select-none border transition-opacity hover:opacity-90",
+                            palette.box,
                             animateIds.has(b.id) && "animate-fade-up"
                           )}
                           style={{ top: y, height: h }}
                           onClick={(e) => { e.stopPropagation(); setDetailBooking(b); }}
                         >
                           {/* left accent bar */}
-                          <div className={cn("absolute left-0 top-0 bottom-0 w-[3px]",
-                            isCheckedIn ? "bg-emerald-500" : "bg-amber-500")} />
-                          <div className="pl-2.5 py-1 pr-1 h-full overflow-hidden">
-                            <p className="text-[11px] font-semibold leading-tight text-slate-800 truncate">
+                          <div className={cn("absolute left-0 top-0 bottom-0 w-[3px]", palette.bar)} />
+                          <div className={cn("pl-2.5 py-1 pr-1 h-full overflow-hidden", done && "opacity-90")}>
+                            <p className={cn(
+                              "text-[11px] font-semibold leading-tight truncate",
+                              done ? "text-slate-500" : "text-slate-800"
+                            )}>
                               {b.title}
                             </p>
                             {h >= 36 && (
@@ -488,9 +510,16 @@ export function MeetingCalendar() {
                               </p>
                             )}
                             {h >= 54 && (
-                              <p className="text-[10px] leading-tight text-slate-400 truncate">
-                                {b.department ? `${b.department} · ` : ""}{b.employeeName}
-                              </p>
+                              done ? (
+                                <p className={cn("text-[10px] font-semibold leading-tight truncate", checkin.cls)}>
+                                  {checkin.label}
+                                  {b.employeeName ? ` · ${b.employeeName}` : ""}
+                                </p>
+                              ) : (
+                                <p className="text-[10px] leading-tight text-slate-400 truncate">
+                                  {b.department ? `${b.department} · ` : ""}{b.employeeName}
+                                </p>
+                              )
                             )}
                           </div>
                         </div>
@@ -501,14 +530,23 @@ export function MeetingCalendar() {
             </div>
 
             {/* legend */}
-            <div className="flex items-center gap-4 border-t border-slate-100 px-4 py-2.5">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-slate-100 px-4 py-2.5">
               <span className="flex items-center gap-1.5 text-xs text-slate-500">
                 <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
-                Sudah check-in
+                Berlangsung
               </span>
               <span className="flex items-center gap-1.5 text-xs text-slate-500">
                 <span className="h-2.5 w-2.5 rounded-sm bg-amber-500" />
                 Dipesan
+              </span>
+              <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                <span className="h-2.5 w-2.5 rounded-sm bg-slate-300" />
+                Selesai
+              </span>
+              <span className="text-xs text-slate-400">
+                Pada “Selesai”:{" "}
+                <span className="font-medium text-emerald-600">Check-in</span> (hadir) /{" "}
+                <span className="font-medium text-amber-600">Auto check-in</span> (tidak check-in manual)
               </span>
             </div>
           </div>
