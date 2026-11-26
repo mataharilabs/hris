@@ -139,6 +139,17 @@ function getRoomStatus(
   return { label: "Tersedia", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" };
 }
 
+// Status blok berdasar waktu sekarang (fungsi modul → lepas dari aturan
+// kemurnian komponen). Komponen re-render tiap menit lewat state nowY.
+function blockTimeState(startIso: string, endIso: string): "live" | "done" | "upcoming" {
+  const now = Date.now();
+  const s = new Date(startIso).getTime();
+  const e = new Date(endIso).getTime();
+  if (now >= s && now < e) return "live";
+  if (e <= now) return "done";
+  return "upcoming";
+}
+
 // ─── main component ───────────────────────────────────────────────────────────
 
 export function MeetingCalendar() {
@@ -290,8 +301,6 @@ export function MeetingCalendar() {
   const rooms = data?.rooms ?? [];
   const bookings = data?.bookings ?? [];
   const isToday = date === todayWIB();
-  // Patokan "sekarang" untuk status blok (ikut diperbarui tiap menit via nowY).
-  const now = Date.now();
 
   // ─── render ─────────────────────────────────────────────────────────────────
 
@@ -410,7 +419,7 @@ export function MeetingCalendar() {
                 <div
                   key={room.id}
                   className={cn(
-                    "relative overflow-hidden cursor-crosshair",
+                    "relative cursor-crosshair",
                     i < rooms.length - 1 && "border-r border-slate-200"
                   )}
                   onClick={(e) => handleColumnClick(room.id, e)}
@@ -465,12 +474,14 @@ export function MeetingCalendar() {
                     .map((b) => {
                       const y = isoToY(b.startAt);
                       const h = blockHeight(b.startAt, b.endAt);
+                      // Batasi tinggi agar blok tak melewati batas timeline di
+                      // keadaan normal (hover boleh memanjang ke bawah).
+                      const hClamped = Math.min(h, TOTAL_H - y);
                       // Status berdasar waktu (seperti landing SSO):
                       // hijau = Berlangsung, abu redup = Selesai, oranye = Dipesan.
-                      const startMs = new Date(b.startAt).getTime();
-                      const endMs = new Date(b.endAt).getTime();
-                      const live = now >= startMs && now < endMs;
-                      const done = endMs <= now;
+                      const tstate = blockTimeState(b.startAt, b.endAt);
+                      const live = tstate === "live";
+                      const done = tstate === "done";
                       const palette = live
                         ? { box: "bg-emerald-50 border-emerald-200", bar: "bg-emerald-500" }
                         : done
@@ -488,38 +499,46 @@ export function MeetingCalendar() {
                         <div
                           key={b.id}
                           className={cn(
-                            "absolute inset-x-1 z-20 rounded-md overflow-hidden cursor-pointer select-none border transition-opacity hover:opacity-90",
+                            // group + hover: blok memanjang ke bawah (auto height)
+                            // agar info pada durasi pendek tak terpotong.
+                            "group absolute inset-x-1 z-20 overflow-hidden rounded-md border cursor-pointer select-none transition-shadow hover:z-40 hover:!h-auto hover:overflow-visible hover:shadow-lg",
                             palette.box,
                             animateIds.has(b.id) && "animate-fade-up"
                           )}
-                          style={{ top: y, height: h }}
+                          style={{ top: y, height: hClamped, minHeight: hClamped }}
                           onClick={(e) => { e.stopPropagation(); setDetailBooking(b); }}
                         >
                           {/* left accent bar */}
                           <div className={cn("absolute left-0 top-0 bottom-0 w-[3px]", palette.bar)} />
-                          <div className={cn("pl-2.5 py-1 pr-1 h-full overflow-hidden", done && "opacity-90")}>
+                          <div className={cn("pl-2.5 py-1 pr-1", done && "opacity-90")}>
                             <p className={cn(
-                              "text-[11px] font-semibold leading-tight truncate",
+                              "text-[11px] font-semibold leading-tight truncate group-hover:whitespace-normal",
                               done ? "text-slate-500" : "text-slate-800"
                             )}>
                               {b.title}
                             </p>
-                            {h >= 36 && (
-                              <p className="text-[10px] leading-tight text-slate-500">
-                                {wibHm(b.startAt)}–{wibHm(b.endAt)}
+                            <p className={cn(
+                              "text-[10px] leading-tight text-slate-500",
+                              h < 36 && "hidden group-hover:block"
+                            )}>
+                              {wibHm(b.startAt)}–{wibHm(b.endAt)}
+                            </p>
+                            {done ? (
+                              <p className={cn(
+                                "text-[10px] font-semibold leading-tight truncate group-hover:whitespace-normal",
+                                checkin.cls,
+                                h < 54 && "hidden group-hover:block"
+                              )}>
+                                {checkin.label}
+                                {b.employeeName ? ` · ${b.employeeName}` : ""}
                               </p>
-                            )}
-                            {h >= 54 && (
-                              done ? (
-                                <p className={cn("text-[10px] font-semibold leading-tight truncate", checkin.cls)}>
-                                  {checkin.label}
-                                  {b.employeeName ? ` · ${b.employeeName}` : ""}
-                                </p>
-                              ) : (
-                                <p className="text-[10px] leading-tight text-slate-400 truncate">
-                                  {b.department ? `${b.department} · ` : ""}{b.employeeName}
-                                </p>
-                              )
+                            ) : (
+                              <p className={cn(
+                                "text-[10px] leading-tight text-slate-400 truncate group-hover:whitespace-normal",
+                                h < 54 && "hidden group-hover:block"
+                              )}>
+                                {b.department ? `${b.department} · ` : ""}{b.employeeName}
+                              </p>
                             )}
                           </div>
                         </div>
