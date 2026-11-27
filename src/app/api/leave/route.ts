@@ -3,11 +3,11 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser, isHr } from "@/lib/session";
 import { handleApiError, ok } from "@/lib/api";
-import { annualLeaveBalance, dayCount } from "@/lib/leave";
+import { annualLeaveBalance } from "@/lib/leave";
 import { notify } from "@/lib/notify-client";
 import { listHrStaff } from "@/lib/sso-client";
 import { LEAVE_TYPE_LABELS } from "@/lib/constants";
-import { formatDate, formatLeaveDays } from "@/lib/utils";
+import { formatDate, formatLeaveDays, workdayCount } from "@/lib/utils";
 import { addPoint, LEAVE_SUBMITTED_POINTS } from "@/lib/gamification";
 
 const schema = z.object({
@@ -37,6 +37,7 @@ async function notifyHrNewLeave(
     days: number;
     isHalfDay: boolean;
     halfDaySession?: string | null;
+    customDates?: string[] | null;
     reason: string;
     task?: string | null;
     substituteName: string | null;
@@ -55,9 +56,20 @@ async function notifyHrNewLeave(
   const phoneByEmail = new Map(locals.map((l) => [l.email, l.phone]));
 
   const daysLabel = formatLeaveDays(leave.days, leave.isHalfDay, leave.halfDaySession);
-  const tanggalLine = leave.isHalfDay
-    ? `• Tanggal: ${formatDate(leave.start)} (${daysLabel})\n`
-    : `• Tanggal: ${formatDate(leave.start)} – ${formatDate(leave.end)} (${daysLabel})\n`;
+  let tanggalLine: string;
+  if (leave.customDates && leave.customDates.length > 0) {
+    const sorted = [...leave.customDates].sort();
+    const fmtDates = sorted.map((d) => formatDate(d));
+    const dateList =
+      fmtDates.length <= 3
+        ? fmtDates.join(", ")
+        : `${fmtDates[0]}, ${fmtDates[1]}, ... (+${fmtDates.length - 2} lainnya)`;
+    tanggalLine = `• Tanggal: ${dateList} (${daysLabel})\n`;
+  } else if (leave.isHalfDay) {
+    tanggalLine = `• Tanggal: ${formatDate(leave.start)} (${daysLabel})\n`;
+  } else {
+    tanggalLine = `• Tanggal: ${formatDate(leave.start)} – ${formatDate(leave.end)} (${daysLabel})\n`;
+  }
 
   const message =
     `Pengajuan cuti baru dari *${leave.requesterName}*.\n` +
@@ -215,7 +227,7 @@ export async function POST(req: NextRequest) {
       if (data.isHalfDay && !data.halfDaySession) {
         return ok({ error: "Pilih sesi (Pagi atau Siang) untuk cuti setengah hari" }, 400);
       }
-      days = data.isHalfDay ? 0.5 : dayCount(start, end);
+      days = data.isHalfDay ? 0.5 : workdayCount(start, end);
     }
 
     if (data.type === "ANNUAL" || data.type === "SICK") {
@@ -318,6 +330,7 @@ export async function POST(req: NextRequest) {
       days,
       isHalfDay: data.isHalfDay ?? false,
       halfDaySession: data.isHalfDay ? (data.halfDaySession ?? null) : null,
+      customDates: data.customDates && data.customDates.length > 0 ? data.customDates : null,
       reason: data.reason,
       task: data.task,
       substituteName: substitute?.name ?? null,

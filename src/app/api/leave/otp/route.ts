@@ -16,6 +16,7 @@ const schema = z.object({
   endDate: z.string().min(1),
   isHalfDay: z.boolean().optional().default(false),
   halfDaySession: z.enum(["MORNING", "AFTERNOON"]).optional(),
+  customDates: z.array(z.string()).optional(),
   reason: z.string().min(1),
   task: z.string().optional(),
 });
@@ -82,17 +83,31 @@ export async function POST(req: NextRequest) {
     const start = new Date(body.startDate);
     const end = new Date(body.endDate);
     const validDates = !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime());
-    const days = validDates
-      ? (body.isHalfDay ? 0.5 : dayCount(start, end))
-      : 0;
+    const hasCustomDates = body.customDates && body.customDates.length > 0;
+    const days = hasCustomDates
+      ? body.customDates!.length
+      : validDates
+        ? (body.isHalfDay ? 0.5 : dayCount(start, end))
+        : 0;
     const daysLabel = formatLeaveDays(days, body.isHalfDay ?? false, body.halfDaySession);
-    const tanggalLine = body.isHalfDay
-      ? `• Tanggal: ${formatDate(start)} (${daysLabel})\n`
-      : `• Tanggal: ${formatDate(start)} – ${formatDate(end)} (${daysLabel})\n`;
+    let tanggalLine: string;
+    if (hasCustomDates) {
+      const sorted = [...body.customDates!].sort();
+      const fmtDates = sorted.map((d) => formatDate(d));
+      const dateList =
+        fmtDates.length <= 3
+          ? fmtDates.join(", ")
+          : `${fmtDates[0]}, ${fmtDates[1]}, ... (+${fmtDates.length - 2} lainnya)`;
+      tanggalLine = `• Tanggal: ${dateList} (${daysLabel})\n`;
+    } else if (body.isHalfDay) {
+      tanggalLine = `• Tanggal: ${formatDate(start)} (${daysLabel})\n`;
+    } else {
+      tanggalLine = validDates ? `• Tanggal: ${formatDate(start)} – ${formatDate(end)} (${daysLabel})\n` : "";
+    }
     const detail =
       `Detail cuti ${user.name ?? "rekan"}:\n` +
       `• Jenis: ${LEAVE_TYPE_LABELS[body.type]}\n` +
-      (validDates ? tanggalLine : "") +
+      (hasCustomDates || validDates ? tanggalLine : "") +
       `• Alasan: ${body.reason}\n` +
       (body.task ? `• Tugas/hand-over: ${body.task}\n` : "");
 

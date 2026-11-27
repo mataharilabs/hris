@@ -389,6 +389,7 @@ export function LeaveForm() {
         endDate,
         isHalfDay,
         halfDaySession: isHalfDay ? form.halfDaySession : undefined,
+        customDates: form.dateMode === "custom" ? form.customDates : undefined,
         reason: form.reason,
         task: form.task,
       }),
